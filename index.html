@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Body Recomp Program</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0B0B0B">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Max Fit">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -97,9 +103,24 @@ select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--
   .two{grid-template-columns:1fr}
   .calc input{width:100%}.calc>div{flex:1 1 140px}
 }
+
+/* install banner */
+.install{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:50;max-width:480px;margin:0 auto;background:var(--card);color:var(--ink);border:1px solid var(--line);border-left:5px solid var(--plate);border-radius:10px;padding:12px 12px 12px 14px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.install img{width:44px;height:44px;border-radius:10px;flex:none}
+.install .txt{flex:1;font-size:14px;line-height:1.35}
+.install .txt b{display:block;font:600 17px "Barlow Condensed",sans-serif}
+.install .go{background:var(--plate);color:var(--on-plate);border:0;border-radius:6px;padding:8px 12px;font:600 16px "Barlow Condensed",sans-serif;cursor:pointer;flex:none}
+.install .x{background:none;border:0;color:var(--steel);font-size:22px;line-height:1;padding:4px;cursor:pointer;flex:none}
 </style>
 </head>
 <body>
+
+<div class="install hidden" id="install" role="dialog" aria-label="Add to home screen">
+  <img src="/apple-touch-icon.png" alt="">
+  <div class="txt"><b>Add Max Fit to your home screen</b><span id="installMsg">Open it like an app, in one tap.</span></div>
+  <button class="go hidden" id="installGo" type="button">Add</button>
+  <button class="x" id="installX" type="button" aria-label="Not now">&times;</button>
+</div>
 
 <section class="login" id="login">
   <form class="login-card" id="loginForm" novalidate>
@@ -268,6 +289,27 @@ function renderNut(){
 (function(){let t=null;try{t=localStorage.getItem("theme");}catch(e){} if(t)document.documentElement.dataset.theme=t;
  $("#themeBtn").onclick=()=>{const cur=document.documentElement.dataset.theme||"dark";
   const nx=cur==="dark"?"light":"dark";document.documentElement.dataset.theme=nx;try{localStorage.setItem("theme",nx);}catch(e){}};})();
+
+/* ---------- add to home screen ---------- */
+(function(){
+ if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
+ const standalone=matchMedia("(display-mode: standalone)").matches||navigator.standalone;
+ let snoozed=false;try{snoozed=Date.now()<+(localStorage.getItem("installSnooze")||0);}catch(e){}
+ if(standalone||snoozed) return;
+ const box=$("#install"),go=$("#installGo");
+ const ua=navigator.userAgent,isIOS=/iPhone|iPad|iPod/.test(ua)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+ let deferred=null;
+ window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferred=e;go.classList.remove("hidden");box.classList.remove("hidden");});
+ go.onclick=async()=>{if(!deferred)return;deferred.prompt();await deferred.userChoice;deferred=null;box.classList.add("hidden");};
+ $("#installX").onclick=()=>{box.classList.add("hidden");try{localStorage.setItem("installSnooze",Date.now()+3*864e5);}catch(e){}};
+ window.addEventListener("appinstalled",()=>box.classList.add("hidden"));
+ if(isIOS){
+  $("#installMsg").innerHTML=/CriOS|FxiOS|EdgiOS/.test(ua)
+   ?'Tap the <b style="display:inline;font:inherit;font-weight:600">Share</b> icon, then <b style="display:inline;font:inherit;font-weight:600">Add to Home Screen</b>.'
+   :'Tap <b style="display:inline;font:inherit;font-weight:600">Share</b> <span aria-hidden="true">&#x2191;&#xFE0E;</span> below, then <b style="display:inline;font:inherit;font-weight:600">Add to Home Screen</b>.';
+  setTimeout(()=>box.classList.remove("hidden"),1500);
+ }
+})();
 
 if(user&&user.name) openApp(); else $("#nm").focus();
 </script>
