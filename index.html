@@ -104,6 +104,16 @@ select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--
   .calc input{width:100%}.calc>div{flex:1 1 140px}
 }
 
+/* exercise photos */
+.ex[role="button"]{cursor:pointer}
+.ex .name::after{content:"";display:inline-block;width:7px;height:7px;margin-left:8px;border-right:2px solid var(--steel);border-bottom:2px solid var(--steel);transform:translateY(-3px) rotate(45deg);transition:transform .15s}
+.ex[aria-expanded="true"] .name::after{transform:translateY(0) rotate(-135deg)}
+.ex:focus-visible{outline:2px solid var(--plate);outline-offset:2px;border-radius:6px}
+.shots{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 0 12px}
+.shots figure{margin:0}
+.shots img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover;border-radius:8px;background:var(--paper)}
+.shots figcaption{font-size:12px;color:var(--steel);margin-top:4px}
+
 /* diet plan */
 .pick h3{font-size:19px;margin:12px 0 6px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -111,6 +121,11 @@ select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--
 .chip[aria-pressed="true"]{background:var(--plate);color:var(--on-plate);border-color:var(--plate);font-weight:600}
 .meal{list-style:none;padding:0;margin:0 0 12px}.meal li{padding:6px 0;border-bottom:1px solid var(--line)}
 .totr td{font-weight:600;border-top:2px solid var(--line)}
+.mealc{border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;background:var(--paper)}
+.mealc.day{border-color:var(--plate)}
+.mealh{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.mealh h3{margin:0 0 4px;font-size:20px}.mealh span{color:var(--steel);font-size:14px}.mealh b{color:var(--plate);font:700 20px "Barlow Condensed",sans-serif}
+#plan td small{display:block;color:var(--steel);font-size:12px}
 #plan td.n,#plan th.n{white-space:nowrap}
 @media (max-width:560px){#plan table{font-size:13px}#plan th,#plan td{padding:7px 4px}}
 .ok{color:var(--steel);font-size:12px}.off{color:var(--plate);font-size:12px;font-weight:600}
@@ -207,6 +222,8 @@ function showTab(t){
 document.querySelector("nav.tabs").onclick=e=>{const b=e.target.closest("button");if(b)showTab(b.dataset.tab);};
 
 /* ---------- exercises ---------- */
+// Start/finish photos from free-exercise-db (public domain), stored in img/ex/.
+const EX_IMG={"Flat Bench Press":"Barbell_Bench_Press_-_Medium_Grip","DB Shoulder Press":"Dumbbell_Shoulder_Press","Incline DB Press":"Incline_Dumbbell_Press","DB Front Raises":"Front_Dumbbell_Raise","DB Lateral Raises":"Side_Lateral_Raise","Chest Flies (Machine)":"Butterfly","Cable Triceps Pushdown (rope)":"Triceps_Pushdown_-_Rope_Attachment","Overhead Triceps Extension (DB / rope)":"Cable_Rope_Overhead_Triceps_Extension","Shrugs":"Dumbbell_Shrug","Lat Pulldown":"Wide-Grip_Lat_Pulldown","Rear Delt Flies (Machine)":"Reverse_Machine_Flyes","Wide Grip Row (Machine)":"Leverage_High_Row","One Arm Row (Machine)":"Leverage_Iso_Row","Close Grip Cable Row":"Seated_Cable_Rows","Standing DB Curls":"Dumbbell_Bicep_Curl","Hammer Curls":"Hammer_Curls","Lower Back Exercise":"Hyperextensions_Back_Extensions","DB Romanian Deadlift":"Stiff-Legged_Dumbbell_Deadlift","Barbell Squat (strength)":"Barbell_Squat","Leg Press":"Leg_Press","One-Leg Leg Curls (hamstring)":"Standing_Leg_Curl","Leg Extension":"Leg_Extensions","Leg Curls":"Lying_Leg_Curls","Standing Calf Raises":"Standing_Calf_Raises","Crunches":"Crunches","Leg Raises":"Flat_Bench_Lying_Leg_Raise","EZ Bar Curls":"EZ-Bar_Curl","Rope Triceps Pushdown":"Triceps_Pushdown_-_Rope_Attachment","Overhead Barbell Shoulder Press":"Barbell_Shoulder_Press","Reverse Grip Lat Pulldown":"Underhand_Cable_Pulldowns","DB Preacher Curls":"One_Arm_Dumbbell_Preacher_Curl","Reverse Grip Triceps Pushdown":"Reverse_Grip_Triceps_Pushdown"};
 function renderEx(){
   const D=PLAN[day];
   let h='<div class="week">'+PLAN.map((p,i)=>`<button class="dayb${p.rest?' rest':''}" aria-pressed="${i===day}" data-i="${i}"><small>${p.d}</small><b>${p.t}</b></button>`).join("")+'</div>';
@@ -216,15 +233,19 @@ function renderEx(){
     h+=`<h2>${D.d} · ${D.t}</h2><p class="note">Warm up 5–10 min on any machine, then dynamic stretching. Start each exercise with a light set at 50–70% of your working weight. Finish with static stretching, a 5 min cool down and a contrast shower.</p>`;
     D.ex.forEach((e,i)=>{
       if(D.split===i) h+='<div class="group">Lower body and abs</div>';
-      h+=`<div class="ex"><div class="i">${i+1}</div><div class="name">${e[0]}</div>
-      <div class="meta"><span class="pill">${e[2]} sets</span><span class="pill">${e[1]} reps</span><span class="pill r">Rest ${e[3]}</span></div></div>`;
+      h+=`<div class="ex" role="button" tabindex="0" aria-expanded="false" data-n="${esc(e[0])}"><div class="i">${i+1}</div><div class="name">${e[0]}</div>
+      <div class="meta"><span class="pill">${e[2]} sets</span><span class="pill">${e[1]} reps</span><span class="pill r">Rest ${e[3]}</span></div></div><div class="shots hidden"></div>`;
     });
   }
   h+='</div>';
   if(!D.rest) h+=`<div class="two"><div class="panel"><h3>Tempo</h3><p style="margin:0 0 4px"><b>4–6 reps:</b> 2 s down, 2 s up.</p><p style="margin:0"><b>8–15 reps:</b> 3–4 s down, 2 s up.</p></div>
   <div class="panel"><h3>Warm-up and dynamic stretch</h3><ul><li>Light cardio on any machine</li><li>Arm swings, 10 reps per side</li><li>Arm circles, 10 reps per side</li><li>Front-to-back leg swings, 10 per side</li><li>Side-to-side leg swings, 10 per side</li><li>Cable external rotation (optional), 15 per side</li></ul></div></div>`;
   $("#tab-ex").innerHTML=h;
-  $("#tab-ex").onclick=e=>{const b=e.target.closest(".dayb");if(b){day=+b.dataset.i;renderEx();}};
+  const toggle=row=>{const box=row.nextElementSibling,open=row.getAttribute("aria-expanded")!=="true",id=EX_IMG[row.dataset.n];
+    if(open&&!box.innerHTML)box.innerHTML=id?["Start","Finish"].map((t,k)=>`<figure><img src="/img/ex/${id}-${k}.jpg" alt="${row.dataset.n}, ${t.toLowerCase()} position" loading="lazy" width="640" height="427"><figcaption>${t}</figcaption></figure>`).join(""):'<p class="note" style="margin:0">No photo for this exercise yet.</p>';
+    row.setAttribute("aria-expanded",open);box.classList.toggle("hidden",!open);};
+  $("#tab-ex").onclick=e=>{const b=e.target.closest(".dayb");if(b){day=+b.dataset.i;renderEx();return;}const r=e.target.closest(".ex");if(r)toggle(r);};
+  $("#tab-ex").onkeydown=e=>{const r=e.target.closest(".ex");if(r&&(e.key==="Enter"||e.key===" ")){e.preventDefault();toggle(r);}};
 }
 
 /* ---------- instructions ---------- */
@@ -341,6 +362,13 @@ const FOODS={
   {id:"cheese",name:"Cheddar cheese",p:25,c:1.3,f:33},
   {id:"butter",name:"Butter",p:0.9,c:0.1,f:81}]}
 };
+// Which meals each food suits. Foods with no tag for a meal are still used there if nothing else in that group fits.
+const MEAL_TAGS={b:"eggs whites yogurt cottage whey oats bread banana dates olive avocado pb cheese butter tahini",
+ m:"chicken turkey beef tuna salmon whitefish shrimp eggs rice brownrice pasta potato sweetpotato quinoa lentils bread olive avocado cheese butter tahini",
+ s:"whey yogurt cottage eggs tuna oats bread banana dates almonds walnuts pb"};
+const MEAL_LAYOUT={3:[["Breakfast","b",1],["Lunch","m",1],["Dinner","m",1]],
+ 4:[["Breakfast","b",1],["Lunch","m",1],["Snack","s",.5],["Dinner","m",1]],
+ 5:[["Breakfast","b",1],["Snack","s",.5],["Lunch","m",1],["Snack","s",.5],["Dinner","m",1]]};
 const FOOD_BY_ID={};Object.values(FOODS).forEach(g=>g.items.forEach(f=>FOOD_BY_ID[f.id]=f));
 let targets=null;
 
@@ -351,36 +379,67 @@ function solve(A,b){const n=b.length,M=A.map((r,i)=>[...r,b[i]]);
     for(let r=0;r<n;r++)if(r!==c){const k=M[r][c]/M[c][c];for(let j=c;j<=n;j++)M[r][j]-=k*M[c][j];}}
   return M.map((r,i)=>r[n]/r[i]);}
 
+// Grams of each food so the picked foods hit target t. Each group (protein/carbs/fats) is a blend whose
+// foods share that group's main macro equally; a group whose amount comes out negative is dropped.
+function fitFoods(ids,t){
+  const blends=Object.values(FOODS).map(g=>{
+    const foods=g.items.filter(f=>ids.includes(f.id));if(!foods.length)return null;
+    const per={p:0,c:0,f:0},grams={}; // macros and grams per 1 g of the main macro
+    foods.forEach(f=>{const gr=(1/foods.length)/(f[g.main]/100);grams[f.id]=gr;["p","c","f"].forEach(m=>per[m]+=gr*f[m]/100);});
+    return {main:g.main,per,grams};});
+  let act=blends.map((b,i)=>b?i:-1).filter(i=>i>=0);
+  while(act.length){const A=act.map(r=>act.map(c=>blends[c].per[blends[r].main])),bb=act.map(r=>t[blends[r].main]);
+    const sol=solve(A,bb);if(!sol){act.pop();continue;}
+    const neg=sol.reduce((m,v,i)=>v<sol[m]?i:m,0);
+    if(sol[neg]>=0){const out={};act.forEach((c,i)=>Object.entries(blends[c].grams).forEach(([id,gr])=>out[id]=(out[id]||0)+gr*sol[i]));return out;}
+    act.splice(neg,1);}
+  return null;}
+
 function renderPlan(){
   const out=$("#plan");if(!out)return;
   if(!targets){out.innerHTML='<p class="note" style="margin:12px 0 0">Enter your weight and height above to build your plan.</p>';return;}
   const chosen=[...document.querySelectorAll('.chip[aria-pressed="true"]')].map(b=>b.dataset.id);
-  // Each category is a blend: its foods share the category's main macro equally.
-  const blends=Object.values(FOODS).map(g=>{
-    const foods=g.items.filter(f=>chosen.includes(f.id));if(!foods.length)return null;
-    const per={p:0,c:0,f:0},grams={}; // macros and grams per 1 g of the main macro
-    foods.forEach(f=>{const gr=(1/foods.length)/(f[g.main]/100);grams[f.id]=gr;["p","c","f"].forEach(m=>per[m]+=gr*f[m]/100);});
-    return {main:g.main,per,grams};});
-  if(!blends[0]){out.innerHTML='<p class="note" style="margin:12px 0 0">Pick at least one protein food.</p>';return;}
-  // Match each active blend to its main macro; if one comes out negative (other foods already cover it), drop it and re-solve.
-  let act=blends.map((b,i)=>b?i:-1).filter(i=>i>=0),x=null;
-  while(act.length){const A=act.map(r=>act.map(c=>blends[c].per[blends[r].main])),bb=act.map(r=>targets[blends[r].main]);
-    const sol=solve(A,bb);if(!sol){act.pop();continue;}
-    const neg=sol.reduce((m,v,i)=>v<sol[m]?i:m,0);if(sol[neg]>=0){x={};act.forEach((c,i)=>x[c]=sol[i]);break;}act.splice(neg,1);}
-  if(!x){out.innerHTML='<p class="note" style="margin:12px 0 0">Couldn\'t build a plan from these foods. Try a different mix.</p>';return;}
-  const meals=+$("#meals").value,r5=v=>Math.max(0,Math.round(v/5)*5);
-  const rows=[];blends.forEach((b,i)=>{if(!b||!x[i])return;Object.entries(b.grams).forEach(([id,gr])=>{const day=r5(gr*x[i]);if(day>0)rows.push({f:FOOD_BY_ID[id],day});});});
-  const tot={p:0,c:0,f:0};rows.forEach(r=>["p","c","f"].forEach(m=>tot[m]+=r.day*r.f[m]/100));
-  const kc=o=>o.p*4+o.c*4+o.f*9,unit=(f,g)=>{if(!f.unit)return"";const n=Math.round(g/f.unit*2)/2;return n>0?` <span class="note">≈ ${n} ${f.uname}${n>1&&f.uname!=="tbsp"?"s":""}</span>`:"";};
-  const diff=(a,t,u)=>{const d=Math.round(a-t);return Math.abs(d)<=Math.max(5,t*0.05)?'<span class="ok" title="On target">✓</span>':`<span class="off">${d>0?"+":""}${d}${u}</span>`;};
-  out.innerHTML=`<h3 style="margin-top:16px">Each meal (${meals} a day)</h3>
-  <ul class="meal">${rows.map(r=>`<li><b>${r5(r.day/meals)} g</b> ${r.f.name}${unit(r.f,r.day/meals)}</li>`).join("")}<li class="note">+ vegetables as much as you like</li></ul>
-  <div class="tbl-wrap"><table><thead><tr><th>Food</th><th class="n">Per day</th><th class="n">Protein</th><th class="n">Carbs</th><th class="n">Fats</th><th class="n">kcal</th></tr></thead><tbody>
-  ${rows.map(r=>`<tr><td>${r.f.name}</td><td class="n">${r.day} g</td><td class="n">${Math.round(r.day*r.f.p/100)}</td><td class="n">${Math.round(r.day*r.f.c/100)}</td><td class="n">${Math.round(r.day*r.f.f/100)}</td><td class="n">${Math.round(kc({p:r.day*r.f.p/100,c:r.day*r.f.c/100,f:r.day*r.f.f/100}))}</td></tr>`).join("")}
-  <tr class="totr"><td>Plan total</td><td></td><td class="n">${Math.round(tot.p)} g</td><td class="n">${Math.round(tot.c)} g</td><td class="n">${Math.round(tot.f)} g</td><td class="n">${Math.round(kc(tot))}</td></tr>
-  <tr><td>Your target</td><td></td><td class="n">${targets.p} g<br>${diff(tot.p,targets.p," g")}</td><td class="n">${targets.c} g<br>${diff(tot.c,targets.c," g")}</td><td class="n">${targets.f} g<br>${diff(tot.f,targets.f," g")}</td><td class="n">${targets.kcal}<br>${diff(kc(tot),targets.kcal,"")}</td></tr>
-  </tbody></table></div>
-  <p class="note" style="margin:10px 0 0">Weigh food cooked, except oats (dry). Vegetables aren't counted. If a macro is off target, the foods you picked carry too much of it (for example salmon or eggs add fat), so swap one food or pick another.</p>`;
+  if(!FOODS.protein.items.some(f=>chosen.includes(f.id))){out.innerHTML='<p class="note" style="margin:12px 0 0">Pick at least one protein food.</p>';return;}
+  const layout=MEAL_LAYOUT[$("#meals").value],wsum=layout.reduce((a,m)=>a+m[2],0),seen={};
+  const r5=v=>Math.round(v/5)*5,mac=(f,g)=>({p:g*f.p/100,c:g*f.c/100,f:g*f.f/100}),kc=o=>o.p*4+o.c*4+o.f*9;
+  // Meals are filled in order. Each gets its share of what is still left of the day's targets, so a meal
+  // that runs over is made up for by the ones after it. It uses the picked foods that suit it, alternating
+  // between them on repeated meal types (lunch/dinner, snacks); if those miss the target, it tries adding
+  // one more picked food and keeps whichever lands closer.
+  const left={...targets};let wleft=wsum;
+  const meals=layout.map(([name,tag,w])=>{
+    const k=seen[tag]=(seen[tag]||0)+1,n=layout.filter(m=>m[1]===tag).length;
+    const pref=[],all=[];Object.values(FOODS).forEach(g=>{
+      const mine=g.items.filter(f=>chosen.includes(f.id)),fit=mine.filter(f=>MEAL_TAGS[tag].split(" ").includes(f.id)),pool=fit.length?fit:mine;
+      const use=n>1&&pool.length>1?pool.filter((f,i)=>i%n===(k-1)%n||(pool.length<n&&i===(k-1)%pool.length)):pool;
+      (use.length?use:pool).forEach(f=>pref.push(f.id));mine.forEach(f=>all.push(f.id));});
+    const t={p:Math.max(0,left.p*w/wleft),c:Math.max(0,left.c*w/wleft),f:Math.max(0,left.f*w/wleft)};
+    const build=ids=>{const g=fitFoods(ids,t)||{};
+      const items=Object.entries(g).map(([id,gr])=>({food:FOOD_BY_ID[id],g:r5(gr)})).filter(x=>x.g>0).map(x=>({...x,...mac(x.food,x.g)}));
+      const tot=items.reduce((a,x)=>({p:a.p+x.p,c:a.c+x.c,f:a.f+x.f}),{p:0,c:0,f:0});
+      return {items,tot,err:Math.abs(tot.p-t.p)*4+Math.abs(tot.c-t.c)*4+Math.abs(tot.f-t.f)*9};};
+    // Cost = distance from target plus a small charge per item, so meals stay short.
+    const cost=m=>m.err+m.items.length*kc(t)*0.015;
+    let best=build(pref);if(best.err>kc(t)*0.05)all.filter(id=>!pref.includes(id)).forEach(id=>{const alt=build([...pref,id]);if(cost(alt)<cost(best))best=alt;});
+    ["p","c","f"].forEach(m=>left[m]-=best.tot[m]);wleft-=w;
+    return {name,items:best.items,tot:best.tot};});
+  const day=meals.reduce((a,m)=>({p:a.p+m.tot.p,c:a.c+m.tot.c,f:a.f+m.tot.f}),{p:0,c:0,f:0});
+  const R=Math.round,unit=(f,g)=>{if(!f.unit)return"";const n=R(g/f.unit*2)/2;return n>0?`<small>≈ ${n} ${f.uname}${n>1&&f.uname!=="tbsp"?"s":""}</small>`:"";};
+  const diff=(a,t,u)=>{const d=R(a-t);return Math.abs(d)<=Math.max(5,t*0.05)?'<span class="ok" title="On target">✓</span>':`<span class="off">${d>0?"+":""}${d}${u}</span>`;};
+  const head='<thead><tr><th>Food</th><th class="n">Amount</th><th class="n">P</th><th class="n">C</th><th class="n">F</th><th class="n">kcal</th></tr></thead>';
+  out.innerHTML=`<p class="note" style="margin:14px 0 6px">P = protein, C = carbs, F = fats, all in grams.</p>
+  ${meals.map((m,i)=>`<div class="mealc"><div class="mealh"><h3>Meal ${i+1} · ${m.name}</h3><span><b>${R(kc(m.tot))}</b> kcal</span></div>
+   <div class="tbl-wrap"><table>${head}<tbody>
+   ${m.items.map(x=>`<tr><td>${x.food.name}${unit(x.food,x.g)}</td><td class="n">${x.g} g</td><td class="n">${R(x.p)}</td><td class="n">${R(x.c)}</td><td class="n">${R(x.f)}</td><td class="n">${R(kc(x))}</td></tr>`).join("")}
+   <tr class="totr"><td>Meal total</td><td></td><td class="n">${R(m.tot.p)}</td><td class="n">${R(m.tot.c)}</td><td class="n">${R(m.tot.f)}</td><td class="n">${R(kc(m.tot))}</td></tr>
+   </tbody></table></div></div>`).join("")}
+  <div class="mealc day"><div class="mealh"><h3>Whole day</h3><span><b>${R(kc(day))}</b> kcal</span></div>
+   <div class="tbl-wrap"><table><thead><tr><th></th><th class="n">Protein</th><th class="n">Carbs</th><th class="n">Fats</th><th class="n">kcal</th></tr></thead><tbody>
+   <tr><td>Your meals</td><td class="n">${R(day.p)} g</td><td class="n">${R(day.c)} g</td><td class="n">${R(day.f)} g</td><td class="n">${R(kc(day))}</td></tr>
+   <tr><td>Your target</td><td class="n">${targets.p} g</td><td class="n">${targets.c} g</td><td class="n">${targets.f} g</td><td class="n">${targets.kcal}</td></tr>
+   <tr><td></td><td class="n">${diff(day.p,targets.p," g")}</td><td class="n">${diff(day.c,targets.c," g")}</td><td class="n">${diff(day.f,targets.f," g")}</td><td class="n">${diff(kc(day),targets.kcal,"")}</td></tr>
+   </tbody></table></div></div>
+  <p class="note" style="margin:10px 0 0">Weigh food cooked, except oats (dry). Add vegetables to any meal; they aren't counted. If a number is orange, the foods you picked carry too much of that macro (for example salmon or eggs add fat), so swap one food or pick another.</p>`;
 }
 
 /* ---------- theme ---------- */
