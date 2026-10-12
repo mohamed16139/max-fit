@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Body Recomp Program</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EEF1F4; --card:#FFFFFF; --ink:#17233B; --steel:#5B6B82; --line:#D5DBE3;
+  --plate:#C2362B; --plate-soft:#F6DDDA; --blue-soft:#DCE6F3;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#121826; --card:#1B2334; --ink:#E7ECF3; --steel:#97A5BA; --line:#2C3850; --plate:#E2574B; --plate-soft:#3A2224; --blue-soft:#22324B;}}
+:root[data-theme="dark"]{--paper:#121826; --card:#1B2334; --ink:#E7ECF3; --steel:#97A5BA; --line:#2C3850; --plate:#E2574B; --plate-soft:#3A2224; --blue-soft:#22324B;}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font:400 15px/1.5 Barlow,system-ui,-apple-system,"Segoe UI",sans-serif}
+h1,h2,h3,.num{font-family:"Barlow Condensed","Arial Narrow",sans-serif}
+.hidden{display:none!important}
+button:focus-visible,input:focus-visible{outline:2px solid var(--plate);outline-offset:2px}
+
+/* login */
+.login{min-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));display:grid;place-items:center;padding:24px 16px}
+.login-card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:28px 24px;border-top:6px solid var(--plate)}
+.login h1{font-size:40px;line-height:1;margin:0 0 6px}
+.login p{margin:0 0 20px;color:var(--steel)}
+label{display:block;font-weight:600;font-size:14px;margin:0 0 6px}
+input{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:14px}
+.err{color:var(--plate);font-size:14px;min-height:20px;margin:-4px 0 10px}
+.btn{width:100%;font:600 18px "Barlow Condensed",sans-serif;background:var(--plate);color:#fff;border:0;border-radius:8px;padding:12px;cursor:pointer;letter-spacing:.3px}
+
+/* app */
+.wrap{max-width:1000px;margin:0 auto;padding:20px 16px 48px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
+header h1{font-size:40px;line-height:1;margin:0}
+.sub{color:var(--steel);margin-top:4px}
+.hdr-actions{display:flex;gap:8px;flex-wrap:wrap}
+.ghost{background:none;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 10px;cursor:pointer;font:inherit;font-size:13px}
+nav.tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin-bottom:16px;overflow-x:auto}
+nav.tabs button{background:none;border:0;padding:10px 14px;font:600 18px "Barlow Condensed",sans-serif;color:var(--steel);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-color:var(--plate)}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:14px}
+.dayb{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:8px 10px;text-align:left;cursor:pointer;font:inherit}
+.dayb small{display:block;color:var(--steel);font-size:12px}
+.dayb b{font:600 17px "Barlow Condensed",sans-serif}
+.dayb.rest{background:transparent}
+.dayb[aria-pressed="true"]{background:var(--ink);color:var(--card);border-color:var(--ink)}
+.dayb[aria-pressed="true"] small{color:inherit;opacity:.75}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.panel h2{margin:0 0 4px;font-size:28px}
+.note{font-size:14px;color:var(--steel);margin:0 0 12px}
+.ex{display:grid;grid-template-columns:34px 1fr auto;gap:4px 12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.ex:first-of-type{border-top:0}
+.ex .i{font:700 20px "Barlow Condensed",sans-serif;color:var(--plate);text-align:center}
+.ex .name{font-weight:600;font-size:16px}
+.ex .meta{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.pill{background:var(--blue-soft);border-radius:4px;padding:2px 8px;font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.pill.r{background:var(--plate-soft)}
+.group{font:600 15px "Barlow Condensed",sans-serif;color:var(--steel);margin:14px 0 0}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:16px}
+.panel h3{font-size:21px;margin:0 0 6px}
+ul{margin:0;padding-left:18px} li{margin:3px 0}
+.guide{columns:2 320px;column-gap:28px}
+.guide section{break-inside:avoid;margin-bottom:18px}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--steel);font-weight:600;font-size:13px}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.calc{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.calc input{width:140px;margin:0}
+.big{font:700 34px "Barlow Condensed",sans-serif;line-height:1.1}
+select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:14px}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0 12px}
+.kcal{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px;margin-top:2px}
+.kcal .big{font-size:44px;color:var(--plate)}
+.macros{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.macro{background:var(--paper);border-radius:8px;padding:10px 12px}
+.macro .big{font-size:30px}
+.macro small{display:block;color:var(--steel);font-size:13px}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;margin-top:12px}
+.bar span:nth-child(1){background:var(--plate)}.bar span:nth-child(2){background:#2F5B93}.bar span:nth-child(3){background:#D9A23A}
+@media (max-width:560px){.macros{gap:6px}.macro{padding:8px}.macro .big{font-size:24px}.kcal .big{font-size:38px}}
+@media (max-width:760px){.week{grid-template-columns:repeat(4,1fr)}}
+@media (max-width:560px){
+  .wrap{padding:14px 12px 40px}
+  header h1{font-size:32px}
+  .hdr-actions{width:100%}.hdr-actions .ghost{flex:1;padding:9px 10px}
+  nav.tabs button{flex:1;padding:10px 6px;font-size:17px}
+  .week{grid-template-columns:repeat(3,1fr)}
+  .dayb{padding:8px}.dayb b{font-size:16px}
+  .panel{padding:14px 12px}.panel h2{font-size:24px}
+  .ex{grid-template-columns:28px 1fr}.ex .meta{grid-column:2;justify-content:flex-start}
+  .two{grid-template-columns:1fr}
+  .calc input{width:100%}.calc>div{flex:1 1 140px}
+}
+</style>
+</head>
+<body>
+
+<section class="login" id="login">
+  <form class="login-card" id="loginForm" novalidate>
+    <h1>Body Recomp Program</h1>
+    <p>Lose fat, build muscle. 4 training days a week.</p>
+    <label for="nm">Name</label>
+    <input id="nm" autocomplete="given-name" placeholder="Your name">
+    <label for="ag">Age</label>
+    <input id="ag" type="number" inputmode="numeric" min="10" max="100" placeholder="Your age">
+    <div class="err" id="err" role="alert"></div>
+    <button class="btn" type="submit">Start program</button>
+  </form>
+</section>
+
+<div class="wrap hidden" id="app">
+  <header>
+    <div><h1 id="hello"></h1><div class="sub" id="who"></div></div>
+    <div class="hdr-actions">
+      <button class="ghost" id="themeBtn" type="button">Switch theme</button>
+      <button class="ghost" id="logout" type="button">Change user</button>
+    </div>
+  </header>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="ex" aria-selected="true">Exercises</button>
+    <button role="tab" data-tab="ins" aria-selected="false">Instructions</button>
+    <button role="tab" data-tab="nut" aria-selected="false">Nutrition</button>
+  </nav>
+  <div id="tab-ex"></div>
+  <div id="tab-ins" class="hidden"></div>
+  <div id="tab-nut" class="hidden"></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const PLAN=[
+ {d:"Day 1",t:"Push",ex:[["Flat Bench Press","4–6",3,"90–120 s"],["DB Shoulder Press","8–10",2,"60–90 s"],["Incline DB Press","10–12",4,"60–90 s"],["DB Front Raises","10–12",2,"60–90 s"],["DB Lateral Raises","10–12",2,"60–90 s"],["Chest Flies (Machine)","12–15",3,"60–90 s"],["Cable Triceps Pushdown (rope)","12–15",3,"60–90 s"],["Overhead Triceps Extension (DB / rope)","10–12",3,"60–90 s"],["Shrugs","15",2,"90–120 s"]]},
+ {d:"Day 2",t:"Pull + Biceps",ex:[["Lat Pulldown","8–10",3,"60–90 s"],["Rear Delt Flies (Machine)","12–15",3,"60–90 s"],["Wide Grip Row (Machine)","10–12",3,"60–90 s"],["One Arm Row (Machine)","12–15",3,"60–90 s"],["Close Grip Cable Row","8–10",2,"60–90 s"],["Standing DB Curls","10–12",3,"60–90 s"],["Hammer Curls","10–12",3,"60–90 s"],["Lower Back Exercise","12–15",3,"60–90 s"],["DB Romanian Deadlift","10–12",2,"90–120 s"]]},
+ {d:"Day 3",t:"Legs + Abs + Arms",ex:[["Barbell Squat (strength)","4–6",3,"90–120 s"],["Leg Press","8–10",3,"60–90 s"],["One-Leg Leg Curls (hamstring)","10–12",2,"60–90 s"],["Leg Extension","12–15",3,"60–90 s"],["Leg Curls","12–15",3,"60–90 s"],["Standing Calf Raises","10–12",3,"60–90 s"],["Crunches","To failure",3,"60–90 s"],["Leg Raises","To failure",3,"60–90 s"],["EZ Bar Curls","10–12",2,"60–90 s"],["Rope Triceps Pushdown","12–15",2,"60–90 s"]]},
+ {d:"Day 4",t:"Active rest",rest:"Light walking, mobility drills or stretching."},
+ {d:"Day 5",t:"Active rest",rest:"Light walking, mobility drills or stretching."},
+ {d:"Day 6",t:"Full body",ex:[["Overhead Barbell Shoulder Press","4–6",2,"90–120 s"],["DB Lateral Raises","10–12",2,"60–90 s"],["Reverse Grip Lat Pulldown","10–12",2,"60–90 s"],["Rear Delt Flies (Machine)","12–15",2,"60–90 s"],["Chest Flies (Machine)","12–15",4,"60–90 s"],["DB Preacher Curls","10–12",3,"60–90 s"],["Reverse Grip Triceps Pushdown","10–12",3,"60–90 s"],["Leg Press","8–10",2,"60–90 s"],["Leg Extension","12–15",2,"60–90 s"],["Leg Curls","12–15",3,"60–90 s"],["Standing Calf Raises","10–12",3,"60–90 s"],["Crunches","To failure",3,"60–90 s"],["Leg Raises","To failure",3,"60–90 s"]],split:7},
+ {d:"Day 7",t:"Rest",rest:"Full rest. Sleep well and let your muscles recover."}
+];
+let day=0;
+
+/* ---------- login ---------- */
+function getUser(){try{return JSON.parse(localStorage.getItem("recompUser")||"null");}catch(e){return null;}}
+function setUser(u){try{u?localStorage.setItem("recompUser",JSON.stringify(u)):localStorage.removeItem("recompUser");}catch(e){}}
+let user=getUser();
+$("#loginForm").onsubmit=e=>{
+  e.preventDefault();
+  const name=$("#nm").value.trim(), age=parseInt($("#ag").value,10);
+  if(!name){$("#err").textContent="Enter your name to continue.";$("#nm").focus();return;}
+  if(!age||age<10||age>100){$("#err").textContent="Enter an age between 10 and 100.";$("#ag").focus();return;}
+  user={name,age}; setUser(user); openApp();
+};
+$("#logout").onclick=()=>{setUser(null);user=null;$("#nm").value="";$("#ag").value="";$("#err").textContent="";
+  $("#app").classList.add("hidden");$("#login").classList.remove("hidden");$("#nm").focus();};
+function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function openApp(){
+  $("#login").classList.add("hidden");$("#app").classList.remove("hidden");
+  $("#hello").textContent="Hi, "+user.name;
+  $("#who").textContent=`Age ${user.age} · Body recomposition program · 4 training days a week`;
+  showTab("ex");
+}
+
+/* ---------- tabs ---------- */
+function showTab(t){
+  document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
+  ["ex","ins","nut"].forEach(k=>$("#tab-"+k).classList.toggle("hidden",k!==t));
+  ({ex:renderEx,ins:renderIns,nut:renderNut})[t]();
+}
+document.querySelector("nav.tabs").onclick=e=>{const b=e.target.closest("button");if(b)showTab(b.dataset.tab);};
+
+/* ---------- exercises ---------- */
+function renderEx(){
+  const D=PLAN[day];
+  let h='<div class="week">'+PLAN.map((p,i)=>`<button class="dayb${p.rest?' rest':''}" aria-pressed="${i===day}" data-i="${i}"><small>${p.d}</small><b>${p.t}</b></button>`).join("")+'</div>';
+  h+='<div class="panel">';
+  if(D.rest){ h+=`<h2>${D.d} · ${D.t}</h2><p class="note" style="margin:0">${D.rest}</p>`; }
+  else{
+    h+=`<h2>${D.d} · ${D.t}</h2><p class="note">Warm up 5–10 min on any machine, then dynamic stretching. Start each exercise with a light set at 50–70% of your working weight. Finish with static stretching, a 5 min cool down and a contrast shower.</p>`;
+    D.ex.forEach((e,i)=>{
+      if(D.split===i) h+='<div class="group">Lower body and abs</div>';
+      h+=`<div class="ex"><div class="i">${i+1}</div><div class="name">${e[0]}</div>
+      <div class="meta"><span class="pill">${e[2]} sets</span><span class="pill">${e[1]} reps</span><span class="pill r">Rest ${e[3]}</span></div></div>`;
+    });
+  }
+  h+='</div>';
+  if(!D.rest) h+=`<div class="two"><div class="panel"><h3>Tempo</h3><p style="margin:0 0 4px"><b>4–6 reps:</b> 2 s down, 2 s up.</p><p style="margin:0"><b>8–15 reps:</b> 3–4 s down, 2 s up.</p></div>
+  <div class="panel"><h3>Warm-up and dynamic stretch</h3><ul><li>Light cardio on any machine</li><li>Arm swings, 10 reps per side</li><li>Arm circles, 10 reps per side</li><li>Front-to-back leg swings, 10 per side</li><li>Side-to-side leg swings, 10 per side</li><li>Cable external rotation (optional), 15 per side</li></ul></div></div>`;
+  $("#tab-ex").innerHTML=h;
+  $("#tab-ex").onclick=e=>{const b=e.target.closest(".dayb");if(b){day=+b.dataset.i;renderEx();}};
+}
+
+/* ---------- instructions ---------- */
+function renderIns(){
+  const G=[
+   ["Warm-up (5–10 min)",["5 min light cardio: treadmill, bike or jump rope","Dynamic stretching: joint rotations, hip circles, arm swings","2–3 lighter warm-up sets at 50–70% of working weight before heavy lifts"]],
+   ["Progressive overload",["Increase weight, reps or intensity gradually","Add reps first (e.g. 8 → 10), then add weight","Add 2.5–5 kg every 1–2 weeks on compound lifts","Track your lifts to measure progress"]],
+   ["Training intensity",["Week 1: RPE 7–9 (1–3 reps left in the tank)","After week 1: RPE 9–10 (1 rep left, or failure on the last set)","Only go to failure on the last set of isolation exercises"]],
+   ["Exercise selection",["Prioritise compounds: squat, deadlift, bench, overhead press, pull-ups, rows","Isolation for weak points: curls, triceps extensions, lateral raises, leg curls","Form first: no ego lifting, controlled reps, full range of motion","Focus on feeling the target muscle work"]],
+   ["Rest between sets",["Strength lifts (squat, deadlift, bench): 2–3 min","Hypertrophy compounds: 90–120 s","Isolation: 45–90 s","Shorter rest = more burn, longer rest = more strength"]],
+   ["Frequency and volume",["Train each muscle at least 2× per week","10–20 sets per muscle per week","Strength 4–6 reps, hypertrophy 6–12, endurance 12–20"]],
+   ["Tempo and control",["Lower the weight in 2–3 s under control","Lift explosively but keep tension on the muscle","No swinging or momentum"]],
+   ["Recovery and sleep",["Sleep 7–9 hours a night","Take 1–2 rest days a week","Active recovery: walking, mobility, stretching","Deload every 4–6 weeks: cut weight/intensity by 50% for one week"]],
+   ["Cardio",["Bulking: 1–2× a week, 20–30 min light/moderate","Cutting: 3–5× a week, 30–45 min moderate/intense","HIIT: sprint 30 s, walk 60 s × 8 rounds","LISS: steady walking or cycling for 30–45 min"]]
+  ];
+  const RPE=[[10,"Max effort, no reps left",0],[9,"Could do 1 more rep",1],[8,"Could do 2 more",2],[7,"Could do 3 more",3],[6,"Could do 4 more",4],[5,"Could do 5 more",5]];
+  const VOL=[["Chest","14 sets"],["Back (full)","16 + 3 lower back"],["Shoulders","17 sets"],["Hamstrings","10+ sets"],["Quads","11 sets"],["Calves","6 sets"],["Biceps","11+ sets"],["Triceps","11+ sets"],["Abs","12 sets"]];
+  let h='<div class="panel"><div class="guide">'+G.map(([t,l])=>`<section><h3>${t}</h3><ul>${l.map(x=>`<li>${x}</li>`).join("")}</ul></section>`).join("")+'</div></div>';
+  h+='<div class="two"><div class="panel"><h3>How hard to push (RPE)</h3><div class="tbl-wrap"><table><thead><tr><th class="n">RPE</th><th>Effort</th><th class="n">Reps left</th></tr></thead><tbody>'+RPE.map(r=>`<tr><td class="n">${r[0]}</td><td>${r[1]}</td><td class="n">${r[2]}</td></tr>`).join("")+'</tbody></table></div></div>';
+  h+='<div class="panel"><h3>Weekly sets per muscle</h3><div class="tbl-wrap"><table><thead><tr><th>Muscle</th><th>Volume</th></tr></thead><tbody>'+VOL.map(v=>`<tr><td>${v[0]}</td><td>${v[1]}</td></tr>`).join("")+'</tbody></table></div><p class="note" style="margin:8px 0 0">Advanced lifters can add extra sets for weak points on a rest day.</p></div></div>';
+  $("#tab-ins").innerHTML=h;
+}
+
+/* ---------- nutrition ---------- */
+function renderNut(){
+  let h=`<div class="panel"><h2>Your daily calories and macros</h2><p class="note">Fill in your details. Age ${user.age} is taken from your login.</p>
+  <div class="form">
+   <div><label for="kg">Weight (kg)</label><input id="kg" type="number" inputmode="decimal" min="30" max="250" placeholder="e.g. 80"></div>
+   <div><label for="cm">Height (cm)</label><input id="cm" type="number" inputmode="decimal" min="120" max="230" placeholder="e.g. 178"></div>
+   <div><label for="sex">Sex</label><select id="sex"><option value="m">Male</option><option value="f">Female</option></select></div>
+   <div><label for="act">Activity</label><select id="act"><option value="1.2">Little or no exercise</option><option value="1.375">Light (1–3 days/week)</option><option value="1.55" selected>Moderate (3–5 days/week)</option><option value="1.725">Very active (6–7 days/week)</option></select></div>
+   <div><label for="goal">Goal</label><select id="goal"><option value="recomp" selected>Body recomp (−300 kcal)</option><option value="cut">Lose fat (−500 kcal)</option><option value="keep">Maintain weight</option><option value="bulk">Build muscle (+300 kcal)</option></select></div>
+  </div>
+  <div id="res"><p class="note" style="margin:0">Enter your weight and height to see your numbers.</p></div>
+  </div>`;
+  h+=`<div class="two">
+  <div class="panel"><h3>Calories</h3><ul><li><b>Building muscle (bulk):</b> eat 250–500 kcal above maintenance</li><li><b>Losing fat (cut):</b> eat 300–500 kcal below maintenance</li></ul></div>
+  <div class="panel"><h3>Hydration</h3><p style="margin:0">Drink at least <b>3–4 litres</b> of water a day.</p></div>
+  <div class="panel"><h3>Before training</h3><p style="margin:0 0 4px">1–2 hours before: carbs + protein.</p><p class="note" style="margin:0">Oats, banana, chicken</p></div>
+  <div class="panel"><h3>After training</h3><p style="margin:0 0 4px">Protein + carbs.</p><p class="note" style="margin:0">Whey + rice, or chicken + potatoes</p></div>
+  </div>`;
+  $("#tab-nut").innerHTML=h;
+  const ids=["kg","cm","sex","act","goal"];
+  try{const s=JSON.parse(localStorage.getItem("recompMacros")||"{}");ids.forEach(k=>{if(s[k]!=null)$("#"+k).value=s[k];});}catch(e){}
+  const calc=()=>{
+    const v={};ids.forEach(k=>v[k]=$("#"+k).value);
+    try{localStorage.setItem("recompMacros",JSON.stringify(v));}catch(e){}
+    const w=parseFloat(v.kg),hcm=parseFloat(v.cm),a=user.age;
+    if(!(w>=30&&w<=250&&hcm>=120&&hcm<=230)){$("#res").innerHTML='<p class="note" style="margin:0">Enter your weight and height to see your numbers.</p>';return;}
+    const bmr=10*w+6.25*hcm-5*a+(v.sex==="m"?5:-161);
+    const tdee=bmr*parseFloat(v.act);
+    const adj={recomp:-300,cut:-500,keep:0,bulk:300}[v.goal];
+    const kcal=Math.round(tdee+adj);
+    const pG=Math.round(w*(v.goal==="bulk"||v.goal==="keep"?1.8:2.0));
+    const fG=Math.round(kcal*0.25/9);
+    const cG=Math.max(0,Math.round((kcal-pG*4-fG*9)/4));
+    const pK=pG*4,fK=fG*9,cK=cG*4,tot=pK+fK+cK||1;
+    const pct=x=>Math.round(x/tot*100);
+    $("#res").innerHTML=`<div class="kcal"><span class="big">${kcal.toLocaleString()}</span><span>kcal a day</span><small class="note" style="margin:0;width:100%">Maintenance is about ${Math.round(tdee).toLocaleString()} kcal${adj?`, adjusted by ${adj>0?'+':''}${adj} for your goal`:''}.</small></div>
+    <div class="macros">
+     <div class="macro"><small>Protein</small><div class="big">${pG} g</div><small>${pK} kcal · ${pct(pK)}%</small></div>
+     <div class="macro"><small>Carbs</small><div class="big">${cG} g</div><small>${cK} kcal · ${pct(cK)}%</small></div>
+     <div class="macro"><small>Fats</small><div class="big">${fG} g</div><small>${fK} kcal · ${pct(fK)}%</small></div>
+    </div>
+    <div class="bar" aria-hidden="true"><span style="width:${pct(pK)}%"></span><span style="width:${pct(cK)}%"></span><span style="width:${pct(fK)}%"></span></div>
+    <p class="note" style="margin:10px 0 0">Protein ${v.goal==="bulk"||v.goal==="keep"?'1.8':'2.0'} g per kg (the plan's range is 1.6–2.2), fats 25% of calories, carbs fill the rest. These are estimates. Adjust by 100–200 kcal if your weight isn't moving as planned after 2–3 weeks.</p>`;
+  };
+  ids.forEach(k=>{$("#"+k).oninput=calc;$("#"+k).onchange=calc;});
+  calc();
+}
+
+/* ---------- theme ---------- */
+(function(){let t=null;try{t=localStorage.getItem("theme");}catch(e){} if(t)document.documentElement.dataset.theme=t;
+ $("#themeBtn").onclick=()=>{const cur=document.documentElement.dataset.theme||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+  const nx=cur==="dark"?"light":"dark";document.documentElement.dataset.theme=nx;try{localStorage.setItem("theme",nx);}catch(e){}};})();
+
+if(user&&user.name) openApp(); else $("#nm").focus();
+</script>
+</body>
+</html>
