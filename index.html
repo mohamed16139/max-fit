@@ -104,6 +104,17 @@ select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--
   .calc input{width:100%}.calc>div{flex:1 1 140px}
 }
 
+/* diet plan */
+.pick h3{font-size:19px;margin:12px 0 6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;font:inherit;font-size:14px}
+.chip[aria-pressed="true"]{background:var(--plate);color:var(--on-plate);border-color:var(--plate);font-weight:600}
+.meal{list-style:none;padding:0;margin:0 0 12px}.meal li{padding:6px 0;border-bottom:1px solid var(--line)}
+.totr td{font-weight:600;border-top:2px solid var(--line)}
+#plan td.n,#plan th.n{white-space:nowrap}
+@media (max-width:560px){#plan table{font-size:13px}#plan th,#plan td{padding:7px 4px}}
+.ok{color:var(--steel);font-size:12px}.off{color:var(--plate);font-size:12px;font-weight:600}
+
 /* install banner */
 .install{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:50;max-width:480px;margin:0 auto;background:var(--card);color:var(--ink);border:1px solid var(--line);border-left:5px solid var(--plate);border-radius:10px;padding:12px 12px 12px 14px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.35)}
 .install img{width:44px;height:44px;border-radius:10px;flex:none}
@@ -249,11 +260,10 @@ function renderNut(){
   </div>
   <div id="res"><p class="note" style="margin:0">Enter your weight and height to see your numbers.</p></div>
   </div>`;
-  h+=`<div class="two">
-  <div class="panel"><h3>Calories</h3><ul><li><b>Building muscle (bulk):</b> eat 250–500 kcal above maintenance</li><li><b>Losing fat (cut):</b> eat 300–500 kcal below maintenance</li></ul></div>
-  <div class="panel"><h3>Hydration</h3><p style="margin:0">Drink at least <b>3–4 litres</b> of water a day.</p></div>
-  <div class="panel"><h3>Before training</h3><p style="margin:0 0 4px">1–2 hours before: carbs + protein.</p><p class="note" style="margin:0">Oats, banana, chicken</p></div>
-  <div class="panel"><h3>After training</h3><p style="margin:0 0 4px">Protein + carbs.</p><p class="note" style="margin:0">Whey + rice, or chicken + potatoes</p></div>
+  h+=`<div class="panel" style="margin-top:16px"><h2>Build your diet plan</h2><p class="note">Pick the foods you like. The plan works out how much of each to eat to hit your calories and macros above.</p>
+  ${Object.entries(FOODS).map(([k,g])=>`<div class="pick"><h3>${g.label}</h3><div class="chips" data-cat="${k}">${g.items.map(f=>`<button type="button" class="chip" data-id="${f.id}" aria-pressed="false">${f.name}</button>`).join("")}</div></div>`).join("")}
+  <div class="form" style="margin-top:6px"><div><label for="meals">Meals a day</label><select id="meals"><option>3</option><option selected>4</option><option>5</option></select></div></div>
+  <div id="plan"></div>
   </div>`;
   $("#tab-nut").innerHTML=h;
   const ids=["kg","cm","sex","act","goal"];
@@ -262,7 +272,7 @@ function renderNut(){
     const v={};ids.forEach(k=>v[k]=$("#"+k).value);
     try{localStorage.setItem("recompMacros",JSON.stringify(v));}catch(e){}
     const w=parseFloat(v.kg),hcm=parseFloat(v.cm),a=user.age;
-    if(!(w>=30&&w<=250&&hcm>=120&&hcm<=230)){$("#res").innerHTML='<p class="note" style="margin:0">Enter your weight and height to see your numbers.</p>';return;}
+    if(!(w>=30&&w<=250&&hcm>=120&&hcm<=230)){$("#res").innerHTML='<p class="note" style="margin:0">Enter your weight and height to see your numbers.</p>';targets=null;renderPlan();return;}
     const bmr=10*w+6.25*hcm-5*a+(v.sex==="m"?5:-161);
     const tdee=bmr*parseFloat(v.act);
     const adj={recomp:-300,cut:-500,keep:0,bulk:300}[v.goal];
@@ -280,9 +290,97 @@ function renderNut(){
     </div>
     <div class="bar" aria-hidden="true"><span style="width:${pct(pK)}%"></span><span style="width:${pct(cK)}%"></span><span style="width:${pct(fK)}%"></span></div>
     <p class="note" style="margin:10px 0 0">Protein ${v.goal==="bulk"||v.goal==="keep"?'1.8':'2.0'} g per kg (the plan's range is 1.6–2.2), fats 25% of calories, carbs fill the rest. These are estimates. Adjust by 100–200 kcal if your weight isn't moving as planned after 2–3 weeks.</p>`;
+    targets={kcal,p:pG,c:cG,f:fG};renderPlan();
   };
   ids.forEach(k=>{$("#"+k).oninput=calc;$("#"+k).onchange=calc;});
+  let saved={};try{saved=JSON.parse(localStorage.getItem("recompFoods")||"null")||{};}catch(e){}
+  if(!saved.foods)saved={foods:["chicken","rice","olive"],meals:"4"};
+  document.querySelectorAll(".chip").forEach(b=>{b.setAttribute("aria-pressed",saved.foods.includes(b.dataset.id));
+    b.onclick=()=>{b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")!=="true");savePlan();renderPlan();};});
+  $("#meals").value=saved.meals||"4";$("#meals").onchange=()=>{savePlan();renderPlan();};
   calc();
+}
+function savePlan(){const foods=[...document.querySelectorAll('.chip[aria-pressed="true"]')].map(b=>b.dataset.id);
+  try{localStorage.setItem("recompFoods",JSON.stringify({foods,meals:$("#meals").value}));}catch(e){}}
+
+/* ---------- diet plan ---------- */
+// Per 100 g. Cooked weight unless the name says dry. unit = grams in one piece/scoop/spoon.
+const FOODS={
+ protein:{label:"Protein",main:"p",items:[
+  {id:"chicken",name:"Chicken breast",p:31,c:0,f:3.6},
+  {id:"turkey",name:"Turkey breast",p:29,c:0,f:2},
+  {id:"beef",name:"Lean beef mince",p:26,c:0,f:8},
+  {id:"tuna",name:"Tuna (in water)",p:26,c:0,f:1},
+  {id:"salmon",name:"Salmon",p:25,c:0,f:12},
+  {id:"whitefish",name:"White fish",p:23,c:0,f:1.5},
+  {id:"shrimp",name:"Shrimp",p:24,c:0.2,f:0.3},
+  {id:"eggs",name:"Whole eggs",p:13,c:1.1,f:11,unit:50,uname:"egg"},
+  {id:"whites",name:"Egg whites",p:11,c:0.7,f:0.2},
+  {id:"yogurt",name:"Greek yogurt 0%",p:10,c:3.6,f:0.4},
+  {id:"cottage",name:"Cottage cheese",p:11,c:3.4,f:1},
+  {id:"whey",name:"Whey protein",p:80,c:8,f:6,unit:30,uname:"scoop"}]},
+ carbs:{label:"Carbs",main:"c",items:[
+  {id:"rice",name:"White rice",p:2.7,c:28,f:0.3},
+  {id:"brownrice",name:"Brown rice",p:2.6,c:23,f:0.9},
+  {id:"pasta",name:"Pasta",p:5.8,c:31,f:0.9},
+  {id:"oats",name:"Oats (dry)",p:13,c:66,f:7},
+  {id:"potato",name:"Potatoes",p:2,c:20,f:0.1},
+  {id:"sweetpotato",name:"Sweet potato",p:2,c:21,f:0.2},
+  {id:"bread",name:"Wholemeal bread",p:13,c:41,f:3.4,unit:35,uname:"slice"},
+  {id:"quinoa",name:"Quinoa",p:4.4,c:21,f:1.9},
+  {id:"lentils",name:"Lentils",p:9,c:20,f:0.4},
+  {id:"banana",name:"Banana",p:1.1,c:23,f:0.3,unit:120,uname:"banana"},
+  {id:"dates",name:"Dates",p:2.5,c:75,f:0.4,unit:8,uname:"date"}]},
+ fats:{label:"Fats",main:"f",items:[
+  {id:"olive",name:"Olive oil",p:0,c:0,f:100,unit:13.5,uname:"tbsp"},
+  {id:"avocado",name:"Avocado",p:2,c:9,f:15},
+  {id:"almonds",name:"Almonds",p:21,c:22,f:50},
+  {id:"walnuts",name:"Walnuts",p:15,c:14,f:65},
+  {id:"pb",name:"Peanut butter",p:25,c:20,f:50,unit:16,uname:"tbsp"},
+  {id:"tahini",name:"Tahini",p:17,c:21,f:54,unit:15,uname:"tbsp"},
+  {id:"cheese",name:"Cheddar cheese",p:25,c:1.3,f:33},
+  {id:"butter",name:"Butter",p:0.9,c:0.1,f:81}]}
+};
+const FOOD_BY_ID={};Object.values(FOODS).forEach(g=>g.items.forEach(f=>FOOD_BY_ID[f.id]=f));
+let targets=null;
+
+// Solve A x = b (small square system) by Gaussian elimination; null if singular.
+function solve(A,b){const n=b.length,M=A.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(M[r][c])>Math.abs(M[p][c]))p=r;
+    if(Math.abs(M[p][c])<1e-9)return null;[M[c],M[p]]=[M[p],M[c]];
+    for(let r=0;r<n;r++)if(r!==c){const k=M[r][c]/M[c][c];for(let j=c;j<=n;j++)M[r][j]-=k*M[c][j];}}
+  return M.map((r,i)=>r[n]/r[i]);}
+
+function renderPlan(){
+  const out=$("#plan");if(!out)return;
+  if(!targets){out.innerHTML='<p class="note" style="margin:12px 0 0">Enter your weight and height above to build your plan.</p>';return;}
+  const chosen=[...document.querySelectorAll('.chip[aria-pressed="true"]')].map(b=>b.dataset.id);
+  // Each category is a blend: its foods share the category's main macro equally.
+  const blends=Object.values(FOODS).map(g=>{
+    const foods=g.items.filter(f=>chosen.includes(f.id));if(!foods.length)return null;
+    const per={p:0,c:0,f:0},grams={}; // macros and grams per 1 g of the main macro
+    foods.forEach(f=>{const gr=(1/foods.length)/(f[g.main]/100);grams[f.id]=gr;["p","c","f"].forEach(m=>per[m]+=gr*f[m]/100);});
+    return {main:g.main,per,grams};});
+  if(!blends[0]){out.innerHTML='<p class="note" style="margin:12px 0 0">Pick at least one protein food.</p>';return;}
+  // Match each active blend to its main macro; if one comes out negative (other foods already cover it), drop it and re-solve.
+  let act=blends.map((b,i)=>b?i:-1).filter(i=>i>=0),x=null;
+  while(act.length){const A=act.map(r=>act.map(c=>blends[c].per[blends[r].main])),bb=act.map(r=>targets[blends[r].main]);
+    const sol=solve(A,bb);if(!sol){act.pop();continue;}
+    const neg=sol.reduce((m,v,i)=>v<sol[m]?i:m,0);if(sol[neg]>=0){x={};act.forEach((c,i)=>x[c]=sol[i]);break;}act.splice(neg,1);}
+  if(!x){out.innerHTML='<p class="note" style="margin:12px 0 0">Couldn\'t build a plan from these foods. Try a different mix.</p>';return;}
+  const meals=+$("#meals").value,r5=v=>Math.max(0,Math.round(v/5)*5);
+  const rows=[];blends.forEach((b,i)=>{if(!b||!x[i])return;Object.entries(b.grams).forEach(([id,gr])=>{const day=r5(gr*x[i]);if(day>0)rows.push({f:FOOD_BY_ID[id],day});});});
+  const tot={p:0,c:0,f:0};rows.forEach(r=>["p","c","f"].forEach(m=>tot[m]+=r.day*r.f[m]/100));
+  const kc=o=>o.p*4+o.c*4+o.f*9,unit=(f,g)=>{if(!f.unit)return"";const n=Math.round(g/f.unit*2)/2;return n>0?` <span class="note">≈ ${n} ${f.uname}${n>1&&f.uname!=="tbsp"?"s":""}</span>`:"";};
+  const diff=(a,t,u)=>{const d=Math.round(a-t);return Math.abs(d)<=Math.max(5,t*0.05)?'<span class="ok" title="On target">✓</span>':`<span class="off">${d>0?"+":""}${d}${u}</span>`;};
+  out.innerHTML=`<h3 style="margin-top:16px">Each meal (${meals} a day)</h3>
+  <ul class="meal">${rows.map(r=>`<li><b>${r5(r.day/meals)} g</b> ${r.f.name}${unit(r.f,r.day/meals)}</li>`).join("")}<li class="note">+ vegetables as much as you like</li></ul>
+  <div class="tbl-wrap"><table><thead><tr><th>Food</th><th class="n">Per day</th><th class="n">Protein</th><th class="n">Carbs</th><th class="n">Fats</th><th class="n">kcal</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td>${r.f.name}</td><td class="n">${r.day} g</td><td class="n">${Math.round(r.day*r.f.p/100)}</td><td class="n">${Math.round(r.day*r.f.c/100)}</td><td class="n">${Math.round(r.day*r.f.f/100)}</td><td class="n">${Math.round(kc({p:r.day*r.f.p/100,c:r.day*r.f.c/100,f:r.day*r.f.f/100}))}</td></tr>`).join("")}
+  <tr class="totr"><td>Plan total</td><td></td><td class="n">${Math.round(tot.p)} g</td><td class="n">${Math.round(tot.c)} g</td><td class="n">${Math.round(tot.f)} g</td><td class="n">${Math.round(kc(tot))}</td></tr>
+  <tr><td>Your target</td><td></td><td class="n">${targets.p} g<br>${diff(tot.p,targets.p," g")}</td><td class="n">${targets.c} g<br>${diff(tot.c,targets.c," g")}</td><td class="n">${targets.f} g<br>${diff(tot.f,targets.f," g")}</td><td class="n">${targets.kcal}<br>${diff(kc(tot),targets.kcal,"")}</td></tr>
+  </tbody></table></div>
+  <p class="note" style="margin:10px 0 0">Weigh food cooked, except oats (dry). Vegetables aren't counted. If a macro is off target, the foods you picked carry too much of it (for example salmon or eggs add fat), so swap one food or pick another.</p>`;
 }
 
 /* ---------- theme ---------- */
