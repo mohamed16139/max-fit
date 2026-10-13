@@ -61,7 +61,7 @@ nav.tabs button[aria-selected="true"]{color:var(--ink);border-color:var(--plate)
 .ex{display:grid;grid-template-columns:34px 1fr auto;gap:4px 12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
 .ex:first-of-type{border-top:0}
 .ex .i{font:700 20px "Barlow Condensed",sans-serif;color:var(--plate);text-align:center}
-.ex .name{font-weight:600;font-size:16px}
+.ex .name{font:600 16px Barlow,system-ui,sans-serif;color:var(--ink);background:none;border:0;padding:4px 0;text-align:left;cursor:pointer}
 .ex .meta{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .pill{background:var(--blue-soft);border-radius:4px;padding:2px 8px;font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .pill.r{background:var(--plate-soft)}
@@ -105,10 +105,27 @@ select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--
 }
 
 /* exercise photos */
-.ex[role="button"]{cursor:pointer}
 .ex .name::after{content:"";display:inline-block;width:7px;height:7px;margin-left:8px;border-right:2px solid var(--steel);border-bottom:2px solid var(--steel);transform:translateY(-3px) rotate(45deg);transition:transform .15s}
-.ex[aria-expanded="true"] .name::after{transform:translateY(0) rotate(-135deg)}
-.ex:focus-visible{outline:2px solid var(--plate);outline-offset:2px;border-radius:6px}
+.ex .name[aria-expanded="true"]::after{transform:translateY(0) rotate(-135deg)}
+.ex .name:focus-visible{outline:2px solid var(--plate);outline-offset:2px;border-radius:4px}
+.exlog{grid-column:2/-1}
+.setf{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.setf input{width:72px;margin:0;padding:7px 8px;font-size:16px;text-align:center}
+.setf .x{color:var(--steel);font-size:14px}
+.logb{background:none;border:1px solid var(--plate);color:var(--plate);border-radius:6px;padding:7px 12px;font:600 15px "Barlow Condensed",sans-serif;cursor:pointer}
+.logb:hover{background:var(--plate);color:var(--on-plate)}
+.sets{font-size:13px;color:var(--steel);margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}
+.set{background:var(--plate-soft);color:var(--ink);border-radius:4px;padding:1px 2px 1px 8px;font-variant-numeric:tabular-nums;display:inline-flex;align-items:center}
+.setx{background:none;border:0;color:var(--steel);cursor:pointer;font-size:15px;line-height:1;padding:2px 6px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.bw{margin-bottom:14px;padding:12px 16px}.bw label{margin-bottom:6px}
+.bwrow{display:flex;gap:8px;align-items:center}.bwrow input{margin:0;max-width:130px}.bwrow span{color:var(--steel)}
+.bwrow .btn{width:auto;padding:9px 18px;font-size:16px}
+.bw .note{display:block;margin-top:6px}
+table.lifts td small{display:block;color:var(--steel);font-size:12px}
+table.lifts tr[data-ex]{cursor:pointer}table.lifts tr.sel td{background:var(--plate-soft)}
+table.lifts .lk{background:none;border:0;padding:0;font:inherit;color:var(--ink);text-align:left;cursor:pointer;font-weight:600}
+td.up{color:var(--plate);font-weight:600}
 .shots{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 0 12px}
 .shots figure{margin:0}
 .shots img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover;border-radius:8px;background:var(--paper)}
@@ -240,31 +257,66 @@ function showTab(t){
 }
 document.querySelector("nav.tabs").onclick=e=>{const b=e.target.closest("button");if(b)showTab(b.dataset.tab);};
 
+/* ---------- progress ---------- */
+// Stored on this device only, per user name: {w:[{d,kg}], l:[{d,ex,kg,reps}], goal}
+const proKey=()=>"recompProgress:"+user.name.toLowerCase();
+function getPro(){let o=null;try{o=JSON.parse(localStorage.getItem(proKey())||"null");}catch(e){}return Object.assign({w:[],l:[],goal:null},o||{});}
+function setPro(o){try{localStorage.setItem(proKey(),JSON.stringify(o));}catch(e){}}
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,today=()=>iso(new Date());
+const fmtD=d=>new Date(d+"T00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"});
+const kgf=v=>(Math.round(v*10)/10).toLocaleString(undefined,{maximumFractionDigits:1});
+let proEx=null;
+
+// Single-series line chart with hover crosshair. pts: [{d,v,tip}] sorted by date.
 /* ---------- exercises ---------- */
 // Start/finish photos from free-exercise-db (public domain), stored in img/ex/.
 const EX_IMG={"Flat Bench Press":"Barbell_Bench_Press_-_Medium_Grip","DB Shoulder Press":"Dumbbell_Shoulder_Press","Incline DB Press":"Incline_Dumbbell_Press","DB Front Raises":"Front_Dumbbell_Raise","DB Lateral Raises":"Side_Lateral_Raise","Chest Flies (Machine)":"Butterfly","Cable Triceps Pushdown (rope)":"Triceps_Pushdown_-_Rope_Attachment","Overhead Triceps Extension (DB / rope)":"Cable_Rope_Overhead_Triceps_Extension","Shrugs":"Dumbbell_Shrug","Lat Pulldown":"Wide-Grip_Lat_Pulldown","Rear Delt Flies (Machine)":"Reverse_Machine_Flyes","Wide Grip Row (Machine)":"Leverage_High_Row","One Arm Row (Machine)":"Leverage_Iso_Row","Close Grip Cable Row":"Seated_Cable_Rows","Standing DB Curls":"Dumbbell_Bicep_Curl","Hammer Curls":"Hammer_Curls","Lower Back Exercise":"Hyperextensions_Back_Extensions","DB Romanian Deadlift":"Stiff-Legged_Dumbbell_Deadlift","Barbell Squat (strength)":"Barbell_Squat","Leg Press":"Leg_Press","One-Leg Leg Curls (hamstring)":"Standing_Leg_Curl","Leg Extension":"Leg_Extensions","Leg Curls":"Lying_Leg_Curls","Standing Calf Raises":"Standing_Calf_Raises","Crunches":"Crunches","Leg Raises":"Flat_Bench_Lying_Leg_Raise","EZ Bar Curls":"EZ-Bar_Curl","Rope Triceps Pushdown":"Triceps_Pushdown_-_Rope_Attachment","Overhead Barbell Shoulder Press":"Barbell_Shoulder_Press","Reverse Grip Lat Pulldown":"Underhand_Cable_Pulldowns","DB Preacher Curls":"One_Arm_Dumbbell_Preacher_Curl","Reverse Grip Triceps Pushdown":"Reverse_Grip_Triceps_Pushdown"};
 function renderEx(){
-  const D=PLAN[day];
-  let h='<div class="week">'+PLAN.map((p,i)=>`<button class="dayb${p.rest?' rest':''}" aria-pressed="${i===day}" data-i="${i}"><small>${p.d}</small><b>${p.t}</b></button>`).join("")+'</div>';
+  const D=PLAN[day],P=getPro(),tw=P.w.find(x=>x.d===today()),lw=[...P.w].sort((x,y)=>x.d<y.d?-1:1).pop();
+  let h=`<form class="panel bw" id="bwForm"><label for="bwKg">Today's body weight</label><div class="bwrow"><input id="bwKg" type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="${lw?kgf(lw.kg):"kg"}" value="${tw?tw.kg:""}" aria-describedby="bwNote"><span>kg</span><button class="btn" type="submit">${tw?"Update":"Save"}</button></div>
+  <small class="note" id="bwNote">${tw?`Saved ${kgf(tw.kg)} kg for today.`:lw?`Last: ${kgf(lw.kg)} kg on ${fmtD(lw.d)}.`:"Weigh in the morning, before eating."}</small></form>`;
+  h+='<div class="week">'+PLAN.map((p,i)=>`<button class="dayb${p.rest?' rest':''}" aria-pressed="${i===day}" data-i="${i}"><small>${p.d}</small><b>${p.t}</b></button>`).join("")+'</div>';
   h+='<div class="panel">';
   if(D.rest){ h+=`<h2>${D.d} · ${D.t}</h2><p class="note" style="margin:0">${D.rest}</p>`; }
   else{
-    h+=`<h2>${D.d} · ${D.t}</h2><p class="note">Warm up 5–10 min on any machine, then dynamic stretching. Start each exercise with a light set at 50–70% of your working weight. Finish with static stretching, a 5 min cool down and a contrast shower.</p>`;
+    h+=`<h2>${D.d} · ${D.t}</h2><p class="note">Warm up 5–10 min on any machine, then dynamic stretching. Start each exercise with a light set at 50–70% of your working weight. Finish with static stretching, a 5 min cool down and a contrast shower. Log your working sets as you go.</p>`;
     D.ex.forEach((e,i)=>{
       if(D.split===i) h+='<div class="group">Lower body and abs</div>';
-      h+=`<div class="ex" role="button" tabindex="0" aria-expanded="false" data-n="${esc(e[0])}"><div class="i">${i+1}</div><div class="name">${e[0]}</div>
-      <div class="meta"><span class="pill">${e[2]} sets</span><span class="pill">${e[1]} reps</span><span class="pill r">Rest ${e[3]}</span></div></div><div class="shots hidden"></div>`;
+      h+=`<div class="ex" data-n="${esc(e[0])}"><div class="i">${i+1}</div><button type="button" class="name" aria-expanded="false">${e[0]}</button>
+      <div class="meta"><span class="pill">${e[2]} sets</span><span class="pill">${e[1]} reps</span><span class="pill r">Rest ${e[3]}</span></div>
+      <div class="exlog">${exLogHTML(e[0],P)}</div></div><div class="shots hidden"></div>`;
     });
   }
   h+='</div>';
   if(!D.rest) h+=`<div class="two"><div class="panel"><h3>Tempo</h3><p style="margin:0 0 4px"><b>4–6 reps:</b> 2 s down, 2 s up.</p><p style="margin:0"><b>8–15 reps:</b> 3–4 s down, 2 s up.</p></div>
   <div class="panel"><h3>Warm-up and dynamic stretch</h3><ul><li>Light cardio on any machine</li><li>Arm swings, 10 reps per side</li><li>Arm circles, 10 reps per side</li><li>Front-to-back leg swings, 10 per side</li><li>Side-to-side leg swings, 10 per side</li><li>Cable external rotation (optional), 15 per side</li></ul></div></div>`;
   $("#tab-ex").innerHTML=h;
-  const toggle=row=>{const box=row.nextElementSibling,open=row.getAttribute("aria-expanded")!=="true",id=EX_IMG[row.dataset.n];
+  const toggle=btn=>{const row=btn.closest(".ex"),box=row.nextElementSibling,open=btn.getAttribute("aria-expanded")!=="true",id=EX_IMG[row.dataset.n];
     if(open&&!box.innerHTML)box.innerHTML=id?["Start","Finish"].map((t,k)=>`<figure><img src="/img/ex/${id}-${k}.jpg" alt="${row.dataset.n}, ${t.toLowerCase()} position" loading="lazy" width="640" height="427"><figcaption>${t}</figcaption></figure>`).join(""):'<p class="note" style="margin:0">No photo for this exercise yet.</p>';
-    row.setAttribute("aria-expanded",open);box.classList.toggle("hidden",!open);};
-  $("#tab-ex").onclick=e=>{const b=e.target.closest(".dayb");if(b){day=+b.dataset.i;renderEx();return;}const r=e.target.closest(".ex");if(r)toggle(r);};
-  $("#tab-ex").onkeydown=e=>{const r=e.target.closest(".ex");if(r&&(e.key==="Enter"||e.key===" ")){e.preventDefault();toggle(r);}};
+    btn.setAttribute("aria-expanded",open);box.classList.toggle("hidden",!open);};
+  $("#tab-ex").onclick=e=>{
+    const b=e.target.closest(".dayb");if(b){day=+b.dataset.i;renderEx();return;}
+    const n=e.target.closest("button.name");if(n){toggle(n);return;}
+    const d=e.target.closest(".setx");if(d){const Q=getPro();Q.l.splice(+d.dataset.l,1);setPro(Q);const row=d.closest(".ex");row.querySelector(".exlog").innerHTML=exLogHTML(row.dataset.n,Q);}};
+  $("#tab-ex").onsubmit=e=>{e.preventDefault();const f=e.target;
+    if(f.id==="bwForm"){const kg=parseFloat($("#bwKg").value);if(!(kg>=30&&kg<=250)){$("#bwNote").textContent="Enter a weight between 30 and 250 kg.";return;}
+      const Q=getPro();Q.w=Q.w.filter(x=>x.d!==today());Q.w.push({d:today(),kg});setPro(Q);renderEx();return;}
+    const row=f.closest(".ex");if(!row)return;
+    const kg=parseFloat(f.elements.kg.value),reps=parseInt(f.elements.reps.value,10);
+    if(!(kg>=0&&kg<=500)||!(reps>=1&&reps<=100)){f.elements[!(kg>=0)?"kg":"reps"].focus();return;}
+    const Q=getPro();Q.l.push({d:today(),ex:row.dataset.n,kg,reps});setPro(Q);
+    row.querySelector(".exlog").innerHTML=exLogHTML(row.dataset.n,Q);row.querySelector(".exlog input[name=kg]").focus();};
+}
+// The inline log under each exercise: kg × reps form, today's sets, and the last session before today.
+function exLogHTML(name,P){
+  const mine=P.l.map((e,i)=>({...e,i})).filter(e=>e.ex===name),td=mine.filter(e=>e.d===today());
+  const prevDay=mine.filter(e=>e.d<today()).map(e=>e.d).sort().pop(),prev=mine.filter(e=>e.d===prevDay);
+  const ref=td[td.length-1]||prev.reduce((m,e)=>!m||e.kg>m.kg?e:m,null),id=name.replace(/\W+/g,"");
+  return `<form class="setf" novalidate><label class="sr" for="kg-${id}">Weight for ${esc(name)}</label><input id="kg-${id}" name="kg" type="number" inputmode="decimal" step="0.5" min="0" max="500" placeholder="${ref?kgf(ref.kg):"kg"}" value="${ref?ref.kg:""}">
+   <span class="x">kg ×</span><label class="sr" for="r-${id}">Reps for ${esc(name)}</label><input id="r-${id}" name="reps" type="number" inputmode="numeric" min="1" max="100" placeholder="${ref?ref.reps:"reps"}">
+   <button type="submit" class="logb">Log set</button></form>
+   ${td.length?`<div class="sets">Today: ${td.map(e=>`<span class="set">${kgf(e.kg)}×${e.reps}<button type="button" class="setx" data-l="${e.i}" aria-label="Delete set ${kgf(e.kg)} kg × ${e.reps}">×</button></span>`).join("")}</div>`:""}
+   ${prev.length?`<div class="sets prev">Last time (${fmtD(prevDay)}): ${prev.map(e=>`${kgf(e.kg)}×${e.reps}`).join(", ")}</div>`:""}`;
 }
 
 /* ---------- instructions ---------- */
@@ -461,17 +513,6 @@ function renderPlan(){
   <p class="note" style="margin:10px 0 0">Weigh food cooked, except oats (dry). Add vegetables to any meal; they aren't counted. If a number is orange, the foods you picked carry too much of that macro (for example salmon or eggs add fat), so swap one food or pick another.</p>`;
 }
 
-/* ---------- progress ---------- */
-// Stored on this device only, per user name: {w:[{d,kg}], l:[{d,ex,kg,reps}], goal}
-const proKey=()=>"recompProgress:"+user.name.toLowerCase();
-function getPro(){let o=null;try{o=JSON.parse(localStorage.getItem(proKey())||"null");}catch(e){}return Object.assign({w:[],l:[],goal:null},o||{});}
-function setPro(o){try{localStorage.setItem(proKey(),JSON.stringify(o));}catch(e){}}
-const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,today=()=>iso(new Date());
-const fmtD=d=>new Date(d+"T00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"});
-const kgf=v=>(Math.round(v*10)/10).toLocaleString(undefined,{maximumFractionDigits:1});
-let proEx=null;
-
-// Single-series line chart with hover crosshair. pts: [{d,v,tip}] sorted by date.
 function lineChart(el,pts,unit,goal){
   const W=Math.max(260,el.clientWidth),H=210,L=40,R=12,T=12,B=26;
   if(!pts.length){el.innerHTML='<p class="note" style="margin:0">Nothing logged yet.</p>';return;}
@@ -496,56 +537,54 @@ function lineChart(el,pts,unit,goal){
 }
 
 function renderPro(){
-  const P=getPro(),exNames=[...new Set(PLAN.flatMap(d=>(d.ex||[]).map(e=>e[0])))];
-  if(!proEx||!exNames.includes(proEx))proEx=(P.l.length&&P.l[P.l.length-1].ex)||exNames[0];
+  const P=getPro(),logged=[...new Set(P.l.map(e=>e.ex))],order=[...new Set(PLAN.flatMap(d=>(d.ex||[]).map(e=>e[0])))];
+  logged.sort((x,y)=>order.indexOf(x)-order.indexOf(y));
+  if(!proEx||!logged.includes(proEx))proEx=(P.l.length&&P.l[P.l.length-1].ex)||logged[0];
   const w=[...P.w].sort((a,b)=>a.d<b.d?-1:1),last=w[w.length-1],first=w[0];
   const ago=n=>{const c=new Date(last.d+"T00:00");c.setDate(c.getDate()-n);const k=iso(c);return [...w].reverse().find(e=>e.d<=k);};
   const chg=(a,b)=>{const d=Math.round((a-b)*10)/10;return (d>0?"+":d<0?"−":"±")+kgf(Math.abs(d))+" kg";};
-  const wk=last&&ago(7);
-  let h=`<div class="panel"><h2>Body weight</h2><p class="note">Weigh yourself in the morning, before eating, for the most consistent numbers.</p>
-  <form class="logf" id="wForm"><div><label for="wKg">Weight (kg)</label><input id="wKg" type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="e.g. 80.4" required></div>
-  <div><label for="wD">Date</label><input id="wD" type="date" value="${today()}" max="${today()}" required></div><button class="btn" type="submit">Save</button></form>
+  const wk=last&&ago(7),days=new Set(P.l.map(e=>e.d)),since=iso(new Date(Date.now()-27*864e5));
+  let h=`<div class="panel"><h2>Body weight</h2>
   ${last?`<div class="stats">
    <div class="macro"><small>Current</small><div class="big">${kgf(last.kg)} kg</div><small>${fmtD(last.d)}</small></div>
    <div class="macro"><small>Since start</small><div class="big">${chg(last.kg,first.kg)}</div><small>from ${kgf(first.kg)} kg on ${fmtD(first.d)}</small></div>
-   <div class="macro"><small>Last 7 days</small><div class="big">${wk&&wk!==last?chg(last.kg,wk.kg):"—"}</div><small>${wk&&wk!==last?"vs "+fmtD(wk.d):"log for a week to see this"}</small></div>
+   <div class="macro"><small>Last 7 days</small><div class="big">${wk&&wk!==last?chg(last.kg,wk.kg):"—"}</div><small>${wk&&wk!==last?"vs "+fmtD(wk.d):"needs a week of entries"}</small></div>
    <div class="macro"><small>To goal</small><div class="big">${P.goal?chg(P.goal,last.kg).replace(/^[+−±]/,""):"—"}</div><small>${P.goal?"goal "+kgf(P.goal)+" kg":"set a goal below"}</small></div>
-  </div>`:""}
-  <div id="wChart" style="margin-top:14px"></div>
+  </div><div id="wChart" style="margin-top:14px"></div>`:'<p class="note" style="margin:0">No weigh-ins yet. Log today\'s weight at the top of the Exercises tab.</p>'}
   <div class="goalrow"><label for="wGoal">Goal weight (kg)</label><input id="wGoal" type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="optional" value="${P.goal??""}"></div>
-  ${w.length?`<details class="hist"><summary>All entries (${w.length})</summary><div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="n">Weight</th><th class="n">Change</th><th></th></tr></thead><tbody>
+  ${w.length?`<details class="hist"><summary>All weigh-ins (${w.length})</summary><div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="n">Weight</th><th class="n">Change</th><th></th></tr></thead><tbody>
    ${[...w].reverse().map((e,i,a)=>`<tr><td>${fmtD(e.d)}</td><td class="n">${kgf(e.kg)} kg</td><td class="n">${a[i+1]?chg(e.kg,a[i+1].kg):""}</td><td class="n"><button class="del" data-w="${e.d}" aria-label="Delete ${fmtD(e.d)}">×</button></td></tr>`).join("")}
   </tbody></table></div></details>`:""}</div>`;
 
-  const L=P.l.filter(e=>e.ex===proEx).sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0),best=L.reduce((m,e)=>!m||e.kg>m.kg||(e.kg===m.kg&&e.reps>m.reps)?e:m,null),lastL=L[L.length-1];
-  h+=`<div class="panel" style="margin-top:16px"><h2>Lifts</h2><p class="note">Log your heaviest working set for each exercise. Aim to add reps, then weight, over time.</p>
-  <label for="lEx">Exercise</label><select id="lEx">${exNames.map(n=>`<option${n===proEx?" selected":""}>${esc(n)}</option>`).join("")}</select>
-  <form class="logf" id="lForm"><div><label for="lKg">Weight (kg)</label><input id="lKg" type="number" inputmode="decimal" step="0.5" min="0" max="500" placeholder="${lastL?lastL.kg:"e.g. 60"}" required></div>
-  <div><label for="lR">Reps</label><input id="lR" type="number" inputmode="numeric" min="1" max="100" placeholder="${lastL?lastL.reps:"e.g. 8"}" required></div>
-  <div><label for="lD">Date</label><input id="lD" type="date" value="${today()}" max="${today()}" required></div><button class="btn" type="submit">Save</button></form>
-  ${L.length?`<div class="stats three">
-   <div class="macro"><small>Last time</small><div class="big">${kgf(lastL.kg)} kg × ${lastL.reps}</div><small>${fmtD(lastL.d)}</small></div>
-   <div class="macro"><small>Best</small><div class="big">${kgf(best.kg)} kg × ${best.reps}</div><small>${fmtD(best.d)}</small></div>
-   <div class="macro"><small>Sessions</small><div class="big">${new Set(L.map(e=>e.d)).size}</div><small>logged</small></div></div>`:""}
-  <div id="lChart" style="margin-top:14px"></div>
-  ${L.length?`<details class="hist"><summary>All sets (${L.length})</summary><div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="n">Weight</th><th class="n">Reps</th><th></th></tr></thead><tbody>
-   ${L.map((e,i)=>({e,i:P.l.indexOf(e)})).reverse().map(({e,i})=>`<tr><td>${fmtD(e.d)}</td><td class="n">${kgf(e.kg)} kg</td><td class="n">${e.reps}</td><td class="n"><button class="del" data-l="${i}" aria-label="Delete set">×</button></td></tr>`).join("")}
-  </tbody></table></div></details>`:""}</div>
-  <p class="note" style="margin:12px 2px 0">Your progress is saved on this device and browser only.</p>`;
+  h+=`<div class="panel" style="margin-top:16px"><h2>Strength</h2>`;
+  if(!logged.length) h+='<p class="note" style="margin:0">No sets logged yet. Log your sets under each exercise in the Exercises tab and your progress shows up here.</p>';
+  else{
+    const sum=logged.map(n=>{const L=P.l.filter(e=>e.ex===n).sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
+      const top=d=>L.filter(e=>e.d===d).reduce((m,e)=>!m||e.kg>m.kg||(e.kg===m.kg&&e.reps>m.reps)?e:m,null);
+      const f=top(L[0].d),l=top(L[L.length-1].d),best=L.reduce((m,e)=>!m||e.kg>m.kg||(e.kg===m.kg&&e.reps>m.reps)?e:m,null);
+      return {n,f,l,best,s:new Set(L.map(e=>e.d)).size};});
+    h+=`<div class="stats three"><div class="macro"><small>Workouts logged</small><div class="big">${days.size}</div><small>days with sets</small></div>
+     <div class="macro"><small>Last 4 weeks</small><div class="big">${[...days].filter(d=>d>=since).length}</div><small>workouts</small></div>
+     <div class="macro"><small>Exercises</small><div class="big">${logged.length}</div><small>tracked</small></div></div>
+    <div class="tbl-wrap" style="margin-top:12px"><table class="lifts"><thead><tr><th>Exercise</th><th class="n">First</th><th class="n">Best</th><th class="n">Change</th></tr></thead><tbody>
+     ${sum.map(r=>{const d=Math.round((r.best.kg-r.f.kg)*10)/10;return `<tr data-ex="${esc(r.n)}"${r.n===proEx?' class="sel"':""}><td><button type="button" class="lk">${esc(r.n)}</button><small>${r.s} session${r.s>1?"s":""}</small></td><td class="n">${kgf(r.f.kg)}×${r.f.reps}</td><td class="n">${kgf(r.best.kg)}×${r.best.reps}</td><td class="n ${d>0?"up":""}">${d>0?"+"+kgf(d)+" kg":d<0?"−"+kgf(-d)+" kg":"—"}</td></tr>`;}).join("")}
+    </tbody></table></div>
+    <h3 style="margin:16px 0 4px">${esc(proEx)}</h3><p class="note" style="margin:0 0 6px">Heaviest set per workout. Tap a row above to switch exercise.</p>
+    <div id="lChart"></div>
+    <details class="hist"><summary>All sets for this exercise</summary><div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="n">Weight</th><th class="n">Reps</th><th></th></tr></thead><tbody>
+     ${P.l.map((e,i)=>({e,i})).filter(x=>x.e.ex===proEx).sort((a,b)=>a.e.d<b.e.d?1:a.e.d>b.e.d?-1:b.i-a.i).map(({e,i})=>`<tr><td>${fmtD(e.d)}</td><td class="n">${kgf(e.kg)} kg</td><td class="n">${e.reps}</td><td class="n"><button class="del" data-l="${i}" aria-label="Delete set">×</button></td></tr>`).join("")}
+    </tbody></table></div></details>`;
+  }
+  h+=`</div><p class="note" style="margin:12px 2px 0">Your progress is saved on this device and browser only.</p>`;
   $("#tab-pro").innerHTML=h;
 
-  const draw=()=>{lineChart($("#wChart"),w.map(e=>({d:e.d,v:e.kg})),"kg",P.goal);
-    const top={};L.forEach(e=>{if(!top[e.d]||e.kg>top[e.d].kg||(e.kg===top[e.d].kg&&e.reps>top[e.d].reps))top[e.d]=e;});
-    lineChart($("#lChart"),Object.values(top).map(e=>({d:e.d,v:e.kg,tip:`${kgf(e.kg)} kg × ${e.reps}`})),"kg");};
+  const draw=()=>{if(last)lineChart($("#wChart"),w.map(e=>({d:e.d,v:e.kg})),"kg",P.goal);
+    if(!logged.length)return;const top={};P.l.filter(e=>e.ex===proEx).forEach(e=>{if(!top[e.d]||e.kg>top[e.d].kg||(e.kg===top[e.d].kg&&e.reps>top[e.d].reps))top[e.d]=e;});
+    lineChart($("#lChart"),Object.values(top).sort((a,b)=>a.d<b.d?-1:1).map(e=>({d:e.d,v:e.kg,tip:`${kgf(e.kg)} kg × ${e.reps}`})),"kg");};
   draw();window.onresize=()=>{if(!$("#tab-pro").classList.contains("hidden"))draw();};
-
-  $("#wForm").onsubmit=e=>{e.preventDefault();const kg=parseFloat($("#wKg").value),d=$("#wD").value;if(!(kg>=30&&kg<=250)||!d)return;
-    P.w=P.w.filter(x=>x.d!==d);P.w.push({d,kg});setPro(P);renderPro();};
   $("#wGoal").onchange=()=>{const g=parseFloat($("#wGoal").value);P.goal=g>=30&&g<=250?g:null;setPro(P);renderPro();};
-  $("#lEx").onchange=()=>{proEx=$("#lEx").value;renderPro();};
-  $("#lForm").onsubmit=e=>{e.preventDefault();const kg=parseFloat($("#lKg").value),reps=parseInt($("#lR").value,10),d=$("#lD").value;if(!(kg>=0)||!(reps>=1)||!d)return;
-    P.l.push({d,ex:proEx,kg,reps});setPro(P);renderPro();};
-  $("#tab-pro").onclick=e=>{const b=e.target.closest(".del");if(!b)return;
+  $("#tab-pro").onclick=e=>{const r=e.target.closest("tr[data-ex]");if(r){proEx=r.dataset.ex;renderPro();return;}
+    const b=e.target.closest(".del");if(!b)return;
     if(b.dataset.w)P.w=P.w.filter(x=>x.d!==b.dataset.w);else P.l.splice(+b.dataset.l,1);setPro(P);renderPro();};
 }
 
