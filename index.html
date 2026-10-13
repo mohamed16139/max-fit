@@ -118,6 +118,10 @@ select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--
 .dayh{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
 .daytag{font-size:14px;color:var(--steel)}.daytag.all{color:var(--plate);font-weight:600}
 .set b{font-size:11px;color:var(--steel)}
+.sets.locked .set{padding-right:8px}
+.editb{display:inline-flex;align-items:center;gap:5px;background:none;border:1px solid var(--line);color:var(--steel);border-radius:6px;padding:3px 9px;font:500 13px Barlow,system-ui,sans-serif;cursor:pointer;margin-left:auto}
+.editb:hover{color:var(--plate);border-color:var(--plate)}
+.editb.done-ed{margin-top:8px}
 .setf{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px}
 .setf input{width:72px;margin:0;padding:7px 8px;font-size:16px;text-align:center}
 .setf .x{color:var(--steel);font-size:14px}
@@ -303,6 +307,8 @@ function renderEx(){
   $("#tab-ex").onclick=e=>{
     const b=e.target.closest(".dayb");if(b){day=+b.dataset.i;renderEx();return;}
     const n=e.target.closest("button.name");if(n){toggle(n);return;}
+    const ed=e.target.closest(".editb");if(ed){const row=ed.closest(".ex"),n=row.dataset.n;exEdit[n]=!ed.classList.contains("done-ed");delete exSel[n];paintEx(row,getPro());
+      const f=row.querySelector(exEdit[n]?".setb[aria-pressed=true]":".editb");if(f)f.focus();return;}
     const sb=e.target.closest(".setb");if(sb){const row=sb.closest(".ex");exSel[row.dataset.n]=+sb.dataset.s;paintEx(row,getPro());row.querySelector("input[name=kg]").focus();return;}
     const d=e.target.closest(".setx");if(d){const Q=getPro();Q.l.splice(+d.dataset.l,1);setPro(Q);const row=d.closest(".ex");paintEx(row,Q);dayDone();}};
   $("#tab-ex").onsubmit=e=>{e.preventDefault();const f=e.target,row=f.closest(".ex");if(!row)return;
@@ -316,6 +322,7 @@ function renderEx(){
     if(!row.classList.contains("done"))row.querySelector("input[name=kg]").focus();};
 }
 const exSel={}; // set picked by hand per exercise; otherwise the next unlogged one
+const exEdit={}; // finished exercises unlocked for editing
 const setName=s=>s?"Set "+s:"Warm-up";
 const todaySets=(name,P)=>P.l.map((e,i)=>({...e,i})).filter(e=>e.ex===name&&e.d===today());
 function nextSet(name,n,P){const done=new Set(todaySets(name,P).map(e=>e.s));for(let k=1;k<=n;k++)if(!done.has(k))return k;return n;}
@@ -328,12 +335,17 @@ function paintEx(row,P){
   const target=(PLAN.flatMap(d=>d.ex||[]).find(e=>e[0]===name)||[])[1]||"",id=name.replace(/\W+/g,"");
   row.classList.toggle("done",finished);
   row.querySelector(".name").innerHTML=esc(name)+(finished?' <span class="donetag">✓ Done</span>':"");
+  const chips=lock=>td.sort((a,b)=>(a.s??1)-(b.s??1)).map(e=>`<span class="set"><b>${e.s===0?"W":e.s?"S"+e.s:""}</b>&nbsp;${kgf(e.kg)}×${e.reps}${lock?"":`<button type="button" class="setx" data-l="${e.i}" aria-label="Delete ${setName(e.s)}: ${kgf(e.kg)} kg × ${e.reps}">×</button>`}</span>`).join("");
+  if(finished&&!exEdit[name]){
+    row.querySelector(".exlog").innerHTML=`<div class="sets locked">${chips(true)}<button type="button" class="editb" aria-label="Edit sets for ${esc(name)}"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M11.5 1.5l3 3-9 9H2.5v-3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>Edit</button></div>`;
+    return;}
   row.querySelector(".exlog").innerHTML=`
    <div class="setpick" role="group" aria-label="Which set">${[0,...Array.from({length:n},(_,k)=>k+1)].map(k=>`<button type="button" class="setb${done.has(k)&&k?" ok":""}" data-s="${k}" aria-pressed="${k===sel}">${done.has(k)&&k?"✓ ":""}${setName(k)}</button>`).join("")}</div>
    <form class="setf" novalidate><label class="sr" for="kg-${id}">Weight for ${esc(name)}, ${setName(sel)}</label><input id="kg-${id}" name="kg" type="number" inputmode="decimal" step="0.5" min="0" max="500" placeholder="kg" value="${cur?cur.kg:""}">
     <span class="x">kg ×</span><label class="sr" for="r-${id}">Reps</label><input id="r-${id}" name="reps" type="number" inputmode="numeric" min="1" max="100" placeholder="${String(target).match(/\d+/)?String(target).match(/\d+/)[0]:"reps"}" value="${cur?cur.reps:""}">
     <button type="submit" class="logb">Log ${setName(sel).toLowerCase()}</button></form>
-   ${td.length?`<div class="sets">Today: ${td.sort((a,b)=>(a.s??1)-(b.s??1)).map(e=>`<span class="set"><b>${e.s===0?"W":e.s?"S"+e.s:""}</b>&nbsp;${kgf(e.kg)}×${e.reps}<button type="button" class="setx" data-l="${e.i}" aria-label="Delete ${setName(e.s)}: ${kgf(e.kg)} kg × ${e.reps}">×</button></span>`).join("")}</div>`:""}
+   ${td.length?`<div class="sets">Today: ${chips(false)}</div>`:""}
+   ${finished?`<button type="button" class="editb done-ed">✓ Done editing</button>`:""}
    ${prev.length?`<div class="sets prev">Last time (${fmtD(prevDay)}): ${prev.map(e=>`${kgf(e.kg)}×${e.reps}`).join(", ")}</div>`:""}`;
 }
 function dayDone(){const el=$("#dayDone");if(!el)return;const rows=[...document.querySelectorAll("#tab-ex .ex")],d=rows.filter(r=>r.classList.contains("done")).length;
