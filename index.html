@@ -114,6 +114,23 @@ select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--
 .shots img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover;border-radius:8px;background:var(--paper)}
 .shots figcaption{font-size:12px;color:var(--steel);margin-top:4px}
 
+/* progress */
+.logf{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0 12px;align-items:end}
+.logf .btn{margin-bottom:14px;padding:10px 12px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stats.three{grid-template-columns:repeat(3,1fr)}
+.stats .big{font-size:24px}
+.chart{position:relative}.chart svg{display:block;touch-action:pan-y}
+.chart .gl{stroke:var(--line);stroke-width:1}.chart .ax{fill:var(--steel);font-size:11px;font-family:Barlow,system-ui,sans-serif}
+.chart .ln{fill:none;stroke:var(--plate);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart .dot{fill:var(--plate);stroke:var(--card);stroke-width:2}
+.chart .goal{stroke:var(--steel);stroke-width:1.5;stroke-dasharray:4 4}
+.chart .xh{stroke:var(--steel);stroke-width:1}.chart .hl{fill:var(--plate);stroke:var(--card);stroke-width:2}
+.chart .tip{position:absolute;transform:translate(-50%,-100%);background:var(--ink);color:var(--card);border-radius:6px;padding:5px 9px;font-size:13px;line-height:1.3;pointer-events:none;white-space:nowrap;text-align:center}
+.goalrow{display:flex;gap:10px;align-items:center;margin-top:12px}.goalrow label{margin:0;white-space:nowrap}.goalrow input{margin:0;max-width:160px}
+.hist{margin-top:12px}.hist summary{cursor:pointer;color:var(--steel);font-size:14px;padding:4px 0}
+.del{background:none;border:0;color:var(--steel);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px}.del:hover{color:var(--plate)}
+@media (max-width:560px){.stats{grid-template-columns:repeat(2,1fr);gap:6px}.stats.three{grid-template-columns:repeat(3,1fr)}.stats .big{font-size:20px}nav.tabs button{font-size:16px;padding:10px 4px}}
+
 /* diet plan */
 .pick h3{font-size:19px;margin:12px 0 6px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -173,10 +190,12 @@ select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--
     <button role="tab" data-tab="ex" aria-selected="true">Exercises</button>
     <button role="tab" data-tab="ins" aria-selected="false">Instructions</button>
     <button role="tab" data-tab="nut" aria-selected="false">Nutrition</button>
+    <button role="tab" data-tab="pro" aria-selected="false">Progress</button>
   </nav>
   <div id="tab-ex"></div>
   <div id="tab-ins" class="hidden"></div>
   <div id="tab-nut" class="hidden"></div>
+  <div id="tab-pro" class="hidden"></div>
 </div>
 
 <script>
@@ -216,8 +235,8 @@ function openApp(){
 /* ---------- tabs ---------- */
 function showTab(t){
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
-  ["ex","ins","nut"].forEach(k=>$("#tab-"+k).classList.toggle("hidden",k!==t));
-  ({ex:renderEx,ins:renderIns,nut:renderNut})[t]();
+  ["ex","ins","nut","pro"].forEach(k=>$("#tab-"+k).classList.toggle("hidden",k!==t));
+  ({ex:renderEx,ins:renderIns,nut:renderNut,pro:renderPro})[t]();
 }
 document.querySelector("nav.tabs").onclick=e=>{const b=e.target.closest("button");if(b)showTab(b.dataset.tab);};
 
@@ -440,6 +459,94 @@ function renderPlan(){
    <tr><td></td><td class="n">${diff(day.p,targets.p," g")}</td><td class="n">${diff(day.c,targets.c," g")}</td><td class="n">${diff(day.f,targets.f," g")}</td><td class="n">${diff(kc(day),targets.kcal,"")}</td></tr>
    </tbody></table></div></div>
   <p class="note" style="margin:10px 0 0">Weigh food cooked, except oats (dry). Add vegetables to any meal; they aren't counted. If a number is orange, the foods you picked carry too much of that macro (for example salmon or eggs add fat), so swap one food or pick another.</p>`;
+}
+
+/* ---------- progress ---------- */
+// Stored on this device only, per user name: {w:[{d,kg}], l:[{d,ex,kg,reps}], goal}
+const proKey=()=>"recompProgress:"+user.name.toLowerCase();
+function getPro(){let o=null;try{o=JSON.parse(localStorage.getItem(proKey())||"null");}catch(e){}return Object.assign({w:[],l:[],goal:null},o||{});}
+function setPro(o){try{localStorage.setItem(proKey(),JSON.stringify(o));}catch(e){}}
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,today=()=>iso(new Date());
+const fmtD=d=>new Date(d+"T00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"});
+const kgf=v=>(Math.round(v*10)/10).toLocaleString(undefined,{maximumFractionDigits:1});
+let proEx=null;
+
+// Single-series line chart with hover crosshair. pts: [{d,v,tip}] sorted by date.
+function lineChart(el,pts,unit,goal){
+  const W=Math.max(260,el.clientWidth),H=210,L=40,R=12,T=12,B=26;
+  if(!pts.length){el.innerHTML='<p class="note" style="margin:0">Nothing logged yet.</p>';return;}
+  const t=pts.map(p=>+new Date(p.d+"T00:00")),t0=t[0],t1=t[t.length-1]||t0+1;
+  let lo=Math.min(...pts.map(p=>p.v),goal??Infinity),hi=Math.max(...pts.map(p=>p.v),goal??-Infinity);
+  const pad=Math.max((hi-lo)*0.15,1);lo-=pad;hi+=pad;
+  const step=[0.5,1,2,2.5,5,10,20,25,50,100].find(s=>(hi-lo)/s<=5)||100;lo=Math.floor(lo/step)*step;hi=Math.ceil(hi/step)*step;
+  const x=v=>t1===t0?L+(W-L-R)/2:L+(v-t0)/(t1-t0)*(W-L-R),y=v=>T+(hi-v)/(hi-lo)*(H-T-B);
+  let g="";for(let v=lo;v<=hi+1e-9;v+=step)g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" class="gl"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end" class="ax">${kgf(v)}</text>`;
+  const xs=pts.length>1?[0,pts.length-1]:[0];
+  xs.forEach(i=>g+=`<text x="${x(t[i])}" y="${H-6}" text-anchor="${pts.length>1?(i?"end":"start"):"middle"}" class="ax">${fmtD(pts[i].d)}</text>`);
+  if(goal!=null)g+=`<line x1="${L}" x2="${W-R}" y1="${y(goal)}" y2="${y(goal)}" class="goal"/><text x="${W-R}" y="${y(goal)-5}" text-anchor="end" class="ax">Goal ${kgf(goal)}</text>`;
+  const path=pts.map((p,i)=>(i?"L":"M")+x(t[i]).toFixed(1)+" "+y(p.v).toFixed(1)).join("");
+  const dots=pts.length<=40?pts.map((p,i)=>`<circle cx="${x(t[i])}" cy="${y(p.v)}" r="4" class="dot"/>`).join(""):"";
+  el.innerHTML=`<div class="chart"><svg width="${W}" height="${H}" role="img" aria-label="${pts.length} entries, latest ${kgf(pts[pts.length-1].v)} ${unit}">${g}<path d="${path}" class="ln"/>${dots}<line class="xh hidden" y1="${T}" y2="${H-B}"/><circle class="hl hidden" r="6"/></svg><div class="tip hidden"></div></div>`;
+  const svg=el.querySelector("svg"),xh=svg.querySelector(".xh"),hl=svg.querySelector(".hl"),tip=el.querySelector(".tip");
+  const show=e=>{const r=svg.getBoundingClientRect(),mx=e.clientX-r.left;let i=0;t.forEach((v,k)=>{if(Math.abs(x(v)-mx)<Math.abs(x(t[i])-mx))i=k;});
+    const px=x(t[i]),py=y(pts[i].v);xh.setAttribute("x1",px);xh.setAttribute("x2",px);hl.setAttribute("cx",px);hl.setAttribute("cy",py);
+    tip.innerHTML=`<b>${pts[i].tip||kgf(pts[i].v)+" "+unit}</b><br>${fmtD(pts[i].d)}`;tip.style.left=Math.min(Math.max(px,60),W-60)+"px";tip.style.top=(py-12)+"px";
+    [xh,hl,tip].forEach(n=>n.classList.remove("hidden"));};
+  svg.onpointermove=show;svg.onpointerdown=show;svg.onpointerleave=()=>[xh,hl,tip].forEach(n=>n.classList.add("hidden"));
+}
+
+function renderPro(){
+  const P=getPro(),exNames=[...new Set(PLAN.flatMap(d=>(d.ex||[]).map(e=>e[0])))];
+  if(!proEx||!exNames.includes(proEx))proEx=(P.l.length&&P.l[P.l.length-1].ex)||exNames[0];
+  const w=[...P.w].sort((a,b)=>a.d<b.d?-1:1),last=w[w.length-1],first=w[0];
+  const ago=n=>{const c=new Date(last.d+"T00:00");c.setDate(c.getDate()-n);const k=iso(c);return [...w].reverse().find(e=>e.d<=k);};
+  const chg=(a,b)=>{const d=Math.round((a-b)*10)/10;return (d>0?"+":d<0?"−":"±")+kgf(Math.abs(d))+" kg";};
+  const wk=last&&ago(7);
+  let h=`<div class="panel"><h2>Body weight</h2><p class="note">Weigh yourself in the morning, before eating, for the most consistent numbers.</p>
+  <form class="logf" id="wForm"><div><label for="wKg">Weight (kg)</label><input id="wKg" type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="e.g. 80.4" required></div>
+  <div><label for="wD">Date</label><input id="wD" type="date" value="${today()}" max="${today()}" required></div><button class="btn" type="submit">Save</button></form>
+  ${last?`<div class="stats">
+   <div class="macro"><small>Current</small><div class="big">${kgf(last.kg)} kg</div><small>${fmtD(last.d)}</small></div>
+   <div class="macro"><small>Since start</small><div class="big">${chg(last.kg,first.kg)}</div><small>from ${kgf(first.kg)} kg on ${fmtD(first.d)}</small></div>
+   <div class="macro"><small>Last 7 days</small><div class="big">${wk&&wk!==last?chg(last.kg,wk.kg):"—"}</div><small>${wk&&wk!==last?"vs "+fmtD(wk.d):"log for a week to see this"}</small></div>
+   <div class="macro"><small>To goal</small><div class="big">${P.goal?chg(P.goal,last.kg).replace(/^[+−±]/,""):"—"}</div><small>${P.goal?"goal "+kgf(P.goal)+" kg":"set a goal below"}</small></div>
+  </div>`:""}
+  <div id="wChart" style="margin-top:14px"></div>
+  <div class="goalrow"><label for="wGoal">Goal weight (kg)</label><input id="wGoal" type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="optional" value="${P.goal??""}"></div>
+  ${w.length?`<details class="hist"><summary>All entries (${w.length})</summary><div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="n">Weight</th><th class="n">Change</th><th></th></tr></thead><tbody>
+   ${[...w].reverse().map((e,i,a)=>`<tr><td>${fmtD(e.d)}</td><td class="n">${kgf(e.kg)} kg</td><td class="n">${a[i+1]?chg(e.kg,a[i+1].kg):""}</td><td class="n"><button class="del" data-w="${e.d}" aria-label="Delete ${fmtD(e.d)}">×</button></td></tr>`).join("")}
+  </tbody></table></div></details>`:""}</div>`;
+
+  const L=P.l.filter(e=>e.ex===proEx).sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0),best=L.reduce((m,e)=>!m||e.kg>m.kg||(e.kg===m.kg&&e.reps>m.reps)?e:m,null),lastL=L[L.length-1];
+  h+=`<div class="panel" style="margin-top:16px"><h2>Lifts</h2><p class="note">Log your heaviest working set for each exercise. Aim to add reps, then weight, over time.</p>
+  <label for="lEx">Exercise</label><select id="lEx">${exNames.map(n=>`<option${n===proEx?" selected":""}>${esc(n)}</option>`).join("")}</select>
+  <form class="logf" id="lForm"><div><label for="lKg">Weight (kg)</label><input id="lKg" type="number" inputmode="decimal" step="0.5" min="0" max="500" placeholder="${lastL?lastL.kg:"e.g. 60"}" required></div>
+  <div><label for="lR">Reps</label><input id="lR" type="number" inputmode="numeric" min="1" max="100" placeholder="${lastL?lastL.reps:"e.g. 8"}" required></div>
+  <div><label for="lD">Date</label><input id="lD" type="date" value="${today()}" max="${today()}" required></div><button class="btn" type="submit">Save</button></form>
+  ${L.length?`<div class="stats three">
+   <div class="macro"><small>Last time</small><div class="big">${kgf(lastL.kg)} kg × ${lastL.reps}</div><small>${fmtD(lastL.d)}</small></div>
+   <div class="macro"><small>Best</small><div class="big">${kgf(best.kg)} kg × ${best.reps}</div><small>${fmtD(best.d)}</small></div>
+   <div class="macro"><small>Sessions</small><div class="big">${new Set(L.map(e=>e.d)).size}</div><small>logged</small></div></div>`:""}
+  <div id="lChart" style="margin-top:14px"></div>
+  ${L.length?`<details class="hist"><summary>All sets (${L.length})</summary><div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="n">Weight</th><th class="n">Reps</th><th></th></tr></thead><tbody>
+   ${L.map((e,i)=>({e,i:P.l.indexOf(e)})).reverse().map(({e,i})=>`<tr><td>${fmtD(e.d)}</td><td class="n">${kgf(e.kg)} kg</td><td class="n">${e.reps}</td><td class="n"><button class="del" data-l="${i}" aria-label="Delete set">×</button></td></tr>`).join("")}
+  </tbody></table></div></details>`:""}</div>
+  <p class="note" style="margin:12px 2px 0">Your progress is saved on this device and browser only.</p>`;
+  $("#tab-pro").innerHTML=h;
+
+  const draw=()=>{lineChart($("#wChart"),w.map(e=>({d:e.d,v:e.kg})),"kg",P.goal);
+    const top={};L.forEach(e=>{if(!top[e.d]||e.kg>top[e.d].kg||(e.kg===top[e.d].kg&&e.reps>top[e.d].reps))top[e.d]=e;});
+    lineChart($("#lChart"),Object.values(top).map(e=>({d:e.d,v:e.kg,tip:`${kgf(e.kg)} kg × ${e.reps}`})),"kg");};
+  draw();window.onresize=()=>{if(!$("#tab-pro").classList.contains("hidden"))draw();};
+
+  $("#wForm").onsubmit=e=>{e.preventDefault();const kg=parseFloat($("#wKg").value),d=$("#wD").value;if(!(kg>=30&&kg<=250)||!d)return;
+    P.w=P.w.filter(x=>x.d!==d);P.w.push({d,kg});setPro(P);renderPro();};
+  $("#wGoal").onchange=()=>{const g=parseFloat($("#wGoal").value);P.goal=g>=30&&g<=250?g:null;setPro(P);renderPro();};
+  $("#lEx").onchange=()=>{proEx=$("#lEx").value;renderPro();};
+  $("#lForm").onsubmit=e=>{e.preventDefault();const kg=parseFloat($("#lKg").value),reps=parseInt($("#lR").value,10),d=$("#lD").value;if(!(kg>=0)||!(reps>=1)||!d)return;
+    P.l.push({d,ex:proEx,kg,reps});setPro(P);renderPro();};
+  $("#tab-pro").onclick=e=>{const b=e.target.closest(".del");if(!b)return;
+    if(b.dataset.w)P.w=P.w.filter(x=>x.d!==b.dataset.w);else P.l.splice(+b.dataset.l,1);setPro(P);renderPro();};
 }
 
 /* ---------- theme ---------- */
