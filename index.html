@@ -109,6 +109,15 @@ select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--
 .ex .name[aria-expanded="true"]::after{transform:translateY(0) rotate(-135deg)}
 .ex .name:focus-visible{outline:2px solid var(--plate);outline-offset:2px;border-radius:4px}
 .exlog{grid-column:2/-1}
+.setpick{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.setb{border:1px solid var(--line);background:var(--paper);color:var(--steel);border-radius:999px;padding:4px 10px;font:500 13px Barlow,system-ui,sans-serif;cursor:pointer}
+.setb.ok{color:var(--ink);border-color:var(--plate-soft);background:var(--plate-soft)}
+.setb[aria-pressed="true"]{background:var(--plate);border-color:var(--plate);color:var(--on-plate);font-weight:600}
+.ex.done .i{color:var(--steel)}
+.donetag{display:inline-block;margin-left:6px;background:var(--plate);color:var(--on-plate);border-radius:4px;padding:0 6px;font:600 13px "Barlow Condensed",sans-serif;vertical-align:2px}
+.dayh{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.daytag{font-size:14px;color:var(--steel)}.daytag.all{color:var(--plate);font-weight:600}
+.set b{font-size:11px;color:var(--steel)}
 .setf{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px}
 .setf input{width:72px;margin:0;padding:7px 8px;font-size:16px;text-align:center}
 .setf .x{color:var(--steel);font-size:14px}
@@ -118,10 +127,8 @@ select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--
 .set{background:var(--plate-soft);color:var(--ink);border-radius:4px;padding:1px 2px 1px 8px;font-variant-numeric:tabular-nums;display:inline-flex;align-items:center}
 .setx{background:none;border:0;color:var(--steel);cursor:pointer;font-size:15px;line-height:1;padding:2px 6px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.bw{margin-bottom:14px;padding:12px 16px}.bw label{margin-bottom:6px}
 .bwrow{display:flex;gap:8px;align-items:center}.bwrow input{margin:0;max-width:130px}.bwrow span{color:var(--steel)}
 .bwrow .btn{width:auto;padding:9px 18px;font-size:16px}
-.bw .note{display:block;margin-top:6px}
 table.lifts td small{display:block;color:var(--steel);font-size:12px}
 table.lifts tr[data-ex]{cursor:pointer}table.lifts tr.sel td{background:var(--plate-soft)}
 table.lifts .lk{background:none;border:0;padding:0;font:inherit;color:var(--ink);text-align:left;cursor:pointer;font-weight:600}
@@ -272,52 +279,65 @@ let proEx=null;
 // Start/finish photos from free-exercise-db (public domain), stored in img/ex/.
 const EX_IMG={"Flat Bench Press":"Barbell_Bench_Press_-_Medium_Grip","DB Shoulder Press":"Dumbbell_Shoulder_Press","Incline DB Press":"Incline_Dumbbell_Press","DB Front Raises":"Front_Dumbbell_Raise","DB Lateral Raises":"Side_Lateral_Raise","Chest Flies (Machine)":"Butterfly","Cable Triceps Pushdown (rope)":"Triceps_Pushdown_-_Rope_Attachment","Overhead Triceps Extension (DB / rope)":"Cable_Rope_Overhead_Triceps_Extension","Shrugs":"Dumbbell_Shrug","Lat Pulldown":"Wide-Grip_Lat_Pulldown","Rear Delt Flies (Machine)":"Reverse_Machine_Flyes","Wide Grip Row (Machine)":"Leverage_High_Row","One Arm Row (Machine)":"Leverage_Iso_Row","Close Grip Cable Row":"Seated_Cable_Rows","Standing DB Curls":"Dumbbell_Bicep_Curl","Hammer Curls":"Hammer_Curls","Lower Back Exercise":"Hyperextensions_Back_Extensions","DB Romanian Deadlift":"Stiff-Legged_Dumbbell_Deadlift","Barbell Squat (strength)":"Barbell_Squat","Leg Press":"Leg_Press","One-Leg Leg Curls (hamstring)":"Standing_Leg_Curl","Leg Extension":"Leg_Extensions","Leg Curls":"Lying_Leg_Curls","Standing Calf Raises":"Standing_Calf_Raises","Crunches":"Crunches","Leg Raises":"Flat_Bench_Lying_Leg_Raise","EZ Bar Curls":"EZ-Bar_Curl","Rope Triceps Pushdown":"Triceps_Pushdown_-_Rope_Attachment","Overhead Barbell Shoulder Press":"Barbell_Shoulder_Press","Reverse Grip Lat Pulldown":"Underhand_Cable_Pulldowns","DB Preacher Curls":"One_Arm_Dumbbell_Preacher_Curl","Reverse Grip Triceps Pushdown":"Reverse_Grip_Triceps_Pushdown"};
 function renderEx(){
-  const D=PLAN[day],P=getPro(),tw=P.w.find(x=>x.d===today()),lw=[...P.w].sort((x,y)=>x.d<y.d?-1:1).pop();
-  let h=`<form class="panel bw" id="bwForm"><label for="bwKg">Today's body weight</label><div class="bwrow"><input id="bwKg" type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="${lw?kgf(lw.kg):"kg"}" value="${tw?tw.kg:""}" aria-describedby="bwNote"><span>kg</span><button class="btn" type="submit">${tw?"Update":"Save"}</button></div>
-  <small class="note" id="bwNote">${tw?`Saved ${kgf(tw.kg)} kg for today.`:lw?`Last: ${kgf(lw.kg)} kg on ${fmtD(lw.d)}.`:"Weigh in the morning, before eating."}</small></form>`;
-  h+='<div class="week">'+PLAN.map((p,i)=>`<button class="dayb${p.rest?' rest':''}" aria-pressed="${i===day}" data-i="${i}"><small>${p.d}</small><b>${p.t}</b></button>`).join("")+'</div>';
+  const D=PLAN[day],P=getPro();
+  let h='<div class="week">'+PLAN.map((p,i)=>`<button class="dayb${p.rest?' rest':''}" aria-pressed="${i===day}" data-i="${i}"><small>${p.d}</small><b>${p.t}</b></button>`).join("")+'</div>';
   h+='<div class="panel">';
   if(D.rest){ h+=`<h2>${D.d} · ${D.t}</h2><p class="note" style="margin:0">${D.rest}</p>`; }
   else{
-    h+=`<h2>${D.d} · ${D.t}</h2><p class="note">Warm up 5–10 min on any machine, then dynamic stretching. Start each exercise with a light set at 50–70% of your working weight. Finish with static stretching, a 5 min cool down and a contrast shower. Log your working sets as you go.</p>`;
+    h+=`<div class="dayh"><h2>${D.d} · ${D.t}</h2><span id="dayDone"></span></div><p class="note">Warm up 5–10 min on any machine, then dynamic stretching. Start each exercise with a light set at 50–70% of your working weight. Finish with static stretching, a 5 min cool down and a contrast shower. Log each set as you go: pick the set, enter the weight and reps, then tap Log.</p>`;
     D.ex.forEach((e,i)=>{
       if(D.split===i) h+='<div class="group">Lower body and abs</div>';
-      h+=`<div class="ex" data-n="${esc(e[0])}"><div class="i">${i+1}</div><button type="button" class="name" aria-expanded="false">${e[0]}</button>
+      h+=`<div class="ex" data-n="${esc(e[0])}" data-sets="${e[2]}"><div class="i">${i+1}</div><button type="button" class="name" aria-expanded="false">${e[0]}</button>
       <div class="meta"><span class="pill">${e[2]} sets</span><span class="pill">${e[1]} reps</span><span class="pill r">Rest ${e[3]}</span></div>
-      <div class="exlog">${exLogHTML(e[0],P)}</div></div><div class="shots hidden"></div>`;
+      <div class="exlog"></div></div><div class="shots hidden"></div>`;
     });
   }
   h+='</div>';
   if(!D.rest) h+=`<div class="two"><div class="panel"><h3>Tempo</h3><p style="margin:0 0 4px"><b>4–6 reps:</b> 2 s down, 2 s up.</p><p style="margin:0"><b>8–15 reps:</b> 3–4 s down, 2 s up.</p></div>
   <div class="panel"><h3>Warm-up and dynamic stretch</h3><ul><li>Light cardio on any machine</li><li>Arm swings, 10 reps per side</li><li>Arm circles, 10 reps per side</li><li>Front-to-back leg swings, 10 per side</li><li>Side-to-side leg swings, 10 per side</li><li>Cable external rotation (optional), 15 per side</li></ul></div></div>`;
   $("#tab-ex").innerHTML=h;
+  document.querySelectorAll("#tab-ex .ex").forEach(r=>paintEx(r,P));dayDone();
   const toggle=btn=>{const row=btn.closest(".ex"),box=row.nextElementSibling,open=btn.getAttribute("aria-expanded")!=="true",id=EX_IMG[row.dataset.n];
     if(open&&!box.innerHTML)box.innerHTML=id?["Start","Finish"].map((t,k)=>`<figure><img src="/img/ex/${id}-${k}.jpg" alt="${row.dataset.n}, ${t.toLowerCase()} position" loading="lazy" width="640" height="427"><figcaption>${t}</figcaption></figure>`).join(""):'<p class="note" style="margin:0">No photo for this exercise yet.</p>';
     btn.setAttribute("aria-expanded",open);box.classList.toggle("hidden",!open);};
   $("#tab-ex").onclick=e=>{
     const b=e.target.closest(".dayb");if(b){day=+b.dataset.i;renderEx();return;}
     const n=e.target.closest("button.name");if(n){toggle(n);return;}
-    const d=e.target.closest(".setx");if(d){const Q=getPro();Q.l.splice(+d.dataset.l,1);setPro(Q);const row=d.closest(".ex");row.querySelector(".exlog").innerHTML=exLogHTML(row.dataset.n,Q);}};
-  $("#tab-ex").onsubmit=e=>{e.preventDefault();const f=e.target;
-    if(f.id==="bwForm"){const kg=parseFloat($("#bwKg").value);if(!(kg>=30&&kg<=250)){$("#bwNote").textContent="Enter a weight between 30 and 250 kg.";return;}
-      const Q=getPro();Q.w=Q.w.filter(x=>x.d!==today());Q.w.push({d:today(),kg});setPro(Q);renderEx();return;}
-    const row=f.closest(".ex");if(!row)return;
+    const sb=e.target.closest(".setb");if(sb){const row=sb.closest(".ex");exSel[row.dataset.n]=+sb.dataset.s;paintEx(row,getPro());row.querySelector("input[name=kg]").focus();return;}
+    const d=e.target.closest(".setx");if(d){const Q=getPro();Q.l.splice(+d.dataset.l,1);setPro(Q);const row=d.closest(".ex");paintEx(row,Q);dayDone();}};
+  $("#tab-ex").onsubmit=e=>{e.preventDefault();const f=e.target,row=f.closest(".ex");if(!row)return;
     const kg=parseFloat(f.elements.kg.value),reps=parseInt(f.elements.reps.value,10);
-    if(!(kg>=0&&kg<=500)||!(reps>=1&&reps<=100)){f.elements[!(kg>=0)?"kg":"reps"].focus();return;}
-    const Q=getPro();Q.l.push({d:today(),ex:row.dataset.n,kg,reps});setPro(Q);
-    row.querySelector(".exlog").innerHTML=exLogHTML(row.dataset.n,Q);row.querySelector(".exlog input[name=kg]").focus();};
+    if(!(kg>=0&&kg<=500)){f.elements.kg.focus();return;}
+    if(!(reps>=1&&reps<=100)){f.elements.reps.focus();return;}
+    const name=row.dataset.n,set=exSel[name]??nextSet(name,+row.dataset.sets,getPro()),Q=getPro();
+    // A working set logged twice on the same day replaces the earlier one; warm-ups add up.
+    if(set>0)Q.l=Q.l.filter(x=>!(x.ex===name&&x.d===today()&&x.s===set));
+    Q.l.push({d:today(),ex:name,kg,reps,s:set});setPro(Q);delete exSel[name];paintEx(row,Q);dayDone();
+    if(!row.classList.contains("done"))row.querySelector("input[name=kg]").focus();};
 }
-// The inline log under each exercise: kg × reps form, today's sets, and the last session before today.
-function exLogHTML(name,P){
-  const mine=P.l.map((e,i)=>({...e,i})).filter(e=>e.ex===name),td=mine.filter(e=>e.d===today());
-  const prevDay=mine.filter(e=>e.d<today()).map(e=>e.d).sort().pop(),prev=mine.filter(e=>e.d===prevDay);
-  const ref=td[td.length-1]||prev.reduce((m,e)=>!m||e.kg>m.kg?e:m,null),id=name.replace(/\W+/g,"");
-  return `<form class="setf" novalidate><label class="sr" for="kg-${id}">Weight for ${esc(name)}</label><input id="kg-${id}" name="kg" type="number" inputmode="decimal" step="0.5" min="0" max="500" placeholder="${ref?kgf(ref.kg):"kg"}" value="${ref?ref.kg:""}">
-   <span class="x">kg ×</span><label class="sr" for="r-${id}">Reps for ${esc(name)}</label><input id="r-${id}" name="reps" type="number" inputmode="numeric" min="1" max="100" placeholder="${ref?ref.reps:"reps"}">
-   <button type="submit" class="logb">Log set</button></form>
-   ${td.length?`<div class="sets">Today: ${td.map(e=>`<span class="set">${kgf(e.kg)}×${e.reps}<button type="button" class="setx" data-l="${e.i}" aria-label="Delete set ${kgf(e.kg)} kg × ${e.reps}">×</button></span>`).join("")}</div>`:""}
+const exSel={}; // set picked by hand per exercise; otherwise the next unlogged one
+const setName=s=>s?"Set "+s:"Warm-up";
+const todaySets=(name,P)=>P.l.map((e,i)=>({...e,i})).filter(e=>e.ex===name&&e.d===today());
+function nextSet(name,n,P){const done=new Set(todaySets(name,P).map(e=>e.s));for(let k=1;k<=n;k++)if(!done.has(k))return k;return n;}
+// The inline log under each exercise: set picker, kg × reps, today's sets, last session, done state.
+function paintEx(row,P){
+  const name=row.dataset.n,n=+row.dataset.sets,td=todaySets(name,P),done=new Set(td.map(e=>e.s));
+  const finished=[...Array(n)].every((_,k)=>done.has(k+1)),sel=exSel[name]??nextSet(name,n,P);
+  const work=P.l.filter(e=>e.ex===name&&e.d<today()&&e.s!==0),prevDay=work.map(e=>e.d).sort().pop(),prev=work.filter(e=>e.d===prevDay).sort((a,b)=>(a.s||0)-(b.s||0));
+  const cur=td.find(e=>e.s===sel)||td.filter(e=>e.s!==0).pop()||prev.find(e=>e.s===sel)||prev[prev.length-1];
+  const target=(PLAN.flatMap(d=>d.ex||[]).find(e=>e[0]===name)||[])[1]||"",id=name.replace(/\W+/g,"");
+  row.classList.toggle("done",finished);
+  row.querySelector(".name").innerHTML=esc(name)+(finished?' <span class="donetag">✓ Done</span>':"");
+  row.querySelector(".exlog").innerHTML=`
+   <div class="setpick" role="group" aria-label="Which set">${[0,...Array.from({length:n},(_,k)=>k+1)].map(k=>`<button type="button" class="setb${done.has(k)&&k?" ok":""}" data-s="${k}" aria-pressed="${k===sel}">${done.has(k)&&k?"✓ ":""}${setName(k)}</button>`).join("")}</div>
+   <form class="setf" novalidate><label class="sr" for="kg-${id}">Weight for ${esc(name)}, ${setName(sel)}</label><input id="kg-${id}" name="kg" type="number" inputmode="decimal" step="0.5" min="0" max="500" placeholder="kg" value="${cur?cur.kg:""}">
+    <span class="x">kg ×</span><label class="sr" for="r-${id}">Reps</label><input id="r-${id}" name="reps" type="number" inputmode="numeric" min="1" max="100" placeholder="${String(target).match(/\d+/)?String(target).match(/\d+/)[0]:"reps"}" value="${cur?cur.reps:""}">
+    <button type="submit" class="logb">Log ${setName(sel).toLowerCase()}</button></form>
+   ${td.length?`<div class="sets">Today: ${td.sort((a,b)=>(a.s??1)-(b.s??1)).map(e=>`<span class="set"><b>${e.s===0?"W":e.s?"S"+e.s:""}</b>&nbsp;${kgf(e.kg)}×${e.reps}<button type="button" class="setx" data-l="${e.i}" aria-label="Delete ${setName(e.s)}: ${kgf(e.kg)} kg × ${e.reps}">×</button></span>`).join("")}</div>`:""}
    ${prev.length?`<div class="sets prev">Last time (${fmtD(prevDay)}): ${prev.map(e=>`${kgf(e.kg)}×${e.reps}`).join(", ")}</div>`:""}`;
 }
+function dayDone(){const el=$("#dayDone");if(!el)return;const rows=[...document.querySelectorAll("#tab-ex .ex")],d=rows.filter(r=>r.classList.contains("done")).length;
+  el.className=d===rows.length?"daytag all":"daytag";el.textContent=d===rows.length?"✓ Workout done":`${d} / ${rows.length} done`;}
 
 /* ---------- instructions ---------- */
 function renderIns(){
@@ -537,29 +557,32 @@ function lineChart(el,pts,unit,goal){
 }
 
 function renderPro(){
-  const P=getPro(),logged=[...new Set(P.l.map(e=>e.ex))],order=[...new Set(PLAN.flatMap(d=>(d.ex||[]).map(e=>e[0])))];
+  const P=getPro(),W=P.l.filter(e=>e.s!==0),logged=[...new Set(W.map(e=>e.ex))],order=[...new Set(PLAN.flatMap(d=>(d.ex||[]).map(e=>e[0])))];
   logged.sort((x,y)=>order.indexOf(x)-order.indexOf(y));
-  if(!proEx||!logged.includes(proEx))proEx=(P.l.length&&P.l[P.l.length-1].ex)||logged[0];
+  if(!proEx||!logged.includes(proEx))proEx=(W.length&&W[W.length-1].ex)||logged[0];
   const w=[...P.w].sort((a,b)=>a.d<b.d?-1:1),last=w[w.length-1],first=w[0];
   const ago=n=>{const c=new Date(last.d+"T00:00");c.setDate(c.getDate()-n);const k=iso(c);return [...w].reverse().find(e=>e.d<=k);};
   const chg=(a,b)=>{const d=Math.round((a-b)*10)/10;return (d>0?"+":d<0?"−":"±")+kgf(Math.abs(d))+" kg";};
-  const wk=last&&ago(7),days=new Set(P.l.map(e=>e.d)),since=iso(new Date(Date.now()-27*864e5));
+  const wk=last&&ago(7),days=new Set(W.map(e=>e.d)),since=iso(new Date(Date.now()-27*864e5));
+  const tw=P.w.find(x=>x.d===today());
   let h=`<div class="panel"><h2>Body weight</h2>
+  <form class="bwrow" id="bwForm"><label class="sr" for="bwKg">Today's weight in kg</label><input id="bwKg" type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="${last?kgf(last.kg):"Today's weight"}" value="${tw?tw.kg:""}"><span>kg</span><button class="btn" type="submit">${tw?"Update today":"Save today"}</button></form>
+  <small class="note" id="bwNote" style="display:block;margin:6px 0 12px">${tw?`Saved ${kgf(tw.kg)} kg for today.`:"Weigh yourself in the morning, before eating."}</small>
   ${last?`<div class="stats">
    <div class="macro"><small>Current</small><div class="big">${kgf(last.kg)} kg</div><small>${fmtD(last.d)}</small></div>
    <div class="macro"><small>Since start</small><div class="big">${chg(last.kg,first.kg)}</div><small>from ${kgf(first.kg)} kg on ${fmtD(first.d)}</small></div>
    <div class="macro"><small>Last 7 days</small><div class="big">${wk&&wk!==last?chg(last.kg,wk.kg):"—"}</div><small>${wk&&wk!==last?"vs "+fmtD(wk.d):"needs a week of entries"}</small></div>
    <div class="macro"><small>To goal</small><div class="big">${P.goal?chg(P.goal,last.kg).replace(/^[+−±]/,""):"—"}</div><small>${P.goal?"goal "+kgf(P.goal)+" kg":"set a goal below"}</small></div>
-  </div><div id="wChart" style="margin-top:14px"></div>`:'<p class="note" style="margin:0">No weigh-ins yet. Log today\'s weight at the top of the Exercises tab.</p>'}
+  </div><div id="wChart" style="margin-top:14px"></div>`:'<p class="note" style="margin:0">No weigh-ins yet. Save today\'s weight above to start your chart.</p>'}
   <div class="goalrow"><label for="wGoal">Goal weight (kg)</label><input id="wGoal" type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="optional" value="${P.goal??""}"></div>
   ${w.length?`<details class="hist"><summary>All weigh-ins (${w.length})</summary><div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="n">Weight</th><th class="n">Change</th><th></th></tr></thead><tbody>
    ${[...w].reverse().map((e,i,a)=>`<tr><td>${fmtD(e.d)}</td><td class="n">${kgf(e.kg)} kg</td><td class="n">${a[i+1]?chg(e.kg,a[i+1].kg):""}</td><td class="n"><button class="del" data-w="${e.d}" aria-label="Delete ${fmtD(e.d)}">×</button></td></tr>`).join("")}
   </tbody></table></div></details>`:""}</div>`;
 
   h+=`<div class="panel" style="margin-top:16px"><h2>Strength</h2>`;
-  if(!logged.length) h+='<p class="note" style="margin:0">No sets logged yet. Log your sets under each exercise in the Exercises tab and your progress shows up here.</p>';
+  if(!logged.length) h+='<p class="note" style="margin:0">No sets logged yet. Log your sets under each exercise in the Exercises tab and your progress shows up here. Warm-up sets aren\'t counted.</p>';
   else{
-    const sum=logged.map(n=>{const L=P.l.filter(e=>e.ex===n).sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
+    const sum=logged.map(n=>{const L=W.filter(e=>e.ex===n).sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
       const top=d=>L.filter(e=>e.d===d).reduce((m,e)=>!m||e.kg>m.kg||(e.kg===m.kg&&e.reps>m.reps)?e:m,null);
       const f=top(L[0].d),l=top(L[L.length-1].d),best=L.reduce((m,e)=>!m||e.kg>m.kg||(e.kg===m.kg&&e.reps>m.reps)?e:m,null);
       return {n,f,l,best,s:new Set(L.map(e=>e.d)).size};});
@@ -571,17 +594,19 @@ function renderPro(){
     </tbody></table></div>
     <h3 style="margin:16px 0 4px">${esc(proEx)}</h3><p class="note" style="margin:0 0 6px">Heaviest set per workout. Tap a row above to switch exercise.</p>
     <div id="lChart"></div>
-    <details class="hist"><summary>All sets for this exercise</summary><div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="n">Weight</th><th class="n">Reps</th><th></th></tr></thead><tbody>
-     ${P.l.map((e,i)=>({e,i})).filter(x=>x.e.ex===proEx).sort((a,b)=>a.e.d<b.e.d?1:a.e.d>b.e.d?-1:b.i-a.i).map(({e,i})=>`<tr><td>${fmtD(e.d)}</td><td class="n">${kgf(e.kg)} kg</td><td class="n">${e.reps}</td><td class="n"><button class="del" data-l="${i}" aria-label="Delete set">×</button></td></tr>`).join("")}
+    <details class="hist"><summary>All sets for this exercise</summary><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Set</th><th class="n">Weight</th><th class="n">Reps</th><th></th></tr></thead><tbody>
+     ${P.l.map((e,i)=>({e,i})).filter(x=>x.e.ex===proEx).sort((a,b)=>a.e.d<b.e.d?1:a.e.d>b.e.d?-1:(a.e.s??99)-(b.e.s??99)).map(({e,i})=>`<tr><td>${fmtD(e.d)}</td><td>${e.s==null?"":setName(e.s)}</td><td class="n">${kgf(e.kg)} kg</td><td class="n">${e.reps}</td><td class="n"><button class="del" data-l="${i}" aria-label="Delete set">×</button></td></tr>`).join("")}
     </tbody></table></div></details>`;
   }
   h+=`</div><p class="note" style="margin:12px 2px 0">Your progress is saved on this device and browser only.</p>`;
   $("#tab-pro").innerHTML=h;
 
   const draw=()=>{if(last)lineChart($("#wChart"),w.map(e=>({d:e.d,v:e.kg})),"kg",P.goal);
-    if(!logged.length)return;const top={};P.l.filter(e=>e.ex===proEx).forEach(e=>{if(!top[e.d]||e.kg>top[e.d].kg||(e.kg===top[e.d].kg&&e.reps>top[e.d].reps))top[e.d]=e;});
+    if(!logged.length)return;const top={};W.filter(e=>e.ex===proEx).forEach(e=>{if(!top[e.d]||e.kg>top[e.d].kg||(e.kg===top[e.d].kg&&e.reps>top[e.d].reps))top[e.d]=e;});
     lineChart($("#lChart"),Object.values(top).sort((a,b)=>a.d<b.d?-1:1).map(e=>({d:e.d,v:e.kg,tip:`${kgf(e.kg)} kg × ${e.reps}`})),"kg");};
   draw();window.onresize=()=>{if(!$("#tab-pro").classList.contains("hidden"))draw();};
+  $("#bwForm").onsubmit=e=>{e.preventDefault();const kg=parseFloat($("#bwKg").value);if(!(kg>=30&&kg<=250)){$("#bwNote").textContent="Enter a weight between 30 and 250 kg.";$("#bwKg").focus();return;}
+    P.w=P.w.filter(x=>x.d!==today());P.w.push({d:today(),kg});setPro(P);renderPro();};
   $("#wGoal").onchange=()=>{const g=parseFloat($("#wGoal").value);P.goal=g>=30&&g<=250?g:null;setPro(P);renderPro();};
   $("#tab-pro").onclick=e=>{const r=e.target.closest("tr[data-ex]");if(r){proEx=r.dataset.ex;renderPro();return;}
     const b=e.target.closest(".del");if(!b)return;
