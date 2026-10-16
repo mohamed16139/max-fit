@@ -231,8 +231,8 @@ td.up{color:var(--plate);font-weight:600}
       <button role="tab" data-ct="nut" aria-selected="false">Nutrition</button>
     </nav>
     <div id="ch-progs"><div class="progs" id="progs"></div>
-    <button class="ghost hidden" id="chooseBack" type="button">Keep my current program</button></div>
-    <div id="ch-slot"></div>
+    <button class="ghost hidden" id="chooseBack" type="button">Back to my workout</button></div>
+    <div id="ch-slot"><div id="tab-ins" class="hidden"></div><div id="tab-nut" class="hidden"></div></div>
   </div>
 </section>
 
@@ -241,19 +241,15 @@ td.up{color:var(--plate);font-weight:600}
     <div><h1 id="hello"></h1><div class="sub" id="who"></div></div>
     <div class="hdr-actions">
       <button class="ghost" id="themeBtn" type="button">Switch theme</button>
-      <button class="ghost" id="progBtn" type="button">Program</button>
+      <button class="ghost" id="progBtn" type="button">Home</button>
       <button class="ghost" id="logout" type="button">Change user</button>
     </div>
   </header>
   <nav class="tabs" role="tablist" id="appTabs">
     <button role="tab" data-tab="ex" aria-selected="true">Exercises</button>
-    <button role="tab" data-tab="ins" aria-selected="false">Instructions</button>
-    <button role="tab" data-tab="nut" aria-selected="false">Nutrition</button>
     <button role="tab" data-tab="pro" aria-selected="false">Progress</button>
   </nav>
   <div id="tab-ex"></div>
-  <div id="tab-ins" class="hidden"></div>
-  <div id="tab-nut" class="hidden"></div>
   <div id="tab-pro" class="hidden"></div>
 </div>
 
@@ -317,7 +313,6 @@ function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;
 function openApp(){
   const pr=PROGRAMS[user.prog]||PROGRAMS.recomp;PLAN=pr.plan;if(!PLAN[day])day=0;
   ["login","choose"].forEach(k=>$("#"+k).classList.add("hidden"));$("#app").classList.remove("hidden");
-  ["ins","nut"].forEach(k=>$("#app").insertBefore($("#tab-"+k),$("#tab-pro")));
   $("#hello").textContent="Hi, "+user.name;
   $("#who").textContent=`Age ${user.age} · ${pr.name} program · ${pr.days} training days a week`;
   showTab("ex");
@@ -325,7 +320,7 @@ function openApp(){
 function showChooser(){
   const cur=user.prog&&PROGRAMS[user.prog]?user.prog:null;
   ["login","app"].forEach(k=>$("#"+k).classList.add("hidden"));$("#choose").classList.remove("hidden");
-  $("#chooseSub").textContent=cur?"Switch to another plan. Your logged sets and weigh-ins stay.":`Hi ${user.name}, pick the plan that fits your week. You can switch any time.`;
+  $("#chooseSub").textContent=cur?"Open your workout, or switch to another plan. Your logged sets and weigh-ins stay.":`Hi ${user.name}, pick the plan that fits your week. You can switch any time.`;
   $("#chooseBack").classList.toggle("hidden",!cur);
   chTab("progs");
   $("#progs").innerHTML=Object.entries(PROGRAMS).map(([k,p])=>`<article class="prog${k===cur?" cur":""}">
@@ -333,17 +328,17 @@ function showChooser(){
    <div class="progm"><span class="pill">${p.days} days a week</span><span class="pill r">${p.level}</span></div>
    <p>${p.about}</p>
    <ol class="progd">${p.plan.map(d=>`<li${d.rest?' class="rd"':""}><b>${d.d.replace("Day ","")}</b>${d.t}</li>`).join("")}</ol>
-   <button class="btn" type="button" data-prog="${k}">${k===cur?"Keep this program":"Start "+p.name}</button></article>`).join("");
+   <button class="btn" type="button" data-prog="${k}">${k===cur?"Open my workout":"Start "+p.name}</button></article>`).join("");
   window.scrollTo(0,0);
 }
 $("#progs").onclick=e=>{const b=e.target.closest("[data-prog]");if(!b)return;if(b.dataset.prog!==user.prog)day=0;user.prog=b.dataset.prog;setUser(user);openApp();window.scrollTo(0,0);};
 $("#chooseBack").onclick=()=>openApp();
-// Instructions and Nutrition don't depend on a program, so the picker shows them too (the same pages, moved in).
+// Home screen tabs: the program list, plus Instructions and Nutrition, which don't depend on a program.
 function chTab(t){
   document.querySelectorAll("#chTabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.ct===t));
   $("#ch-progs").classList.toggle("hidden",t!=="progs");
   $("#chooseSub").classList.toggle("hidden",t!=="progs");$("#chooseH").textContent={progs:"Choose your program",ins:"Instructions",nut:"Nutrition"}[t];
-  ["ins","nut"].forEach(k=>{const el=$("#tab-"+k);if(k===t){$("#ch-slot").appendChild(el);el.classList.remove("hidden");}else el.classList.add("hidden");});
+  ["ins","nut"].forEach(k=>$("#tab-"+k).classList.toggle("hidden",k!==t));
   if(t!=="progs")({ins:renderIns,nut:renderNut})[t]();
 }
 $("#chTabs").onclick=e=>{const b=e.target.closest("button");if(b)chTab(b.dataset.ct);};
@@ -352,8 +347,8 @@ $("#progBtn").onclick=()=>showChooser();
 /* ---------- tabs ---------- */
 function showTab(t){
   document.querySelectorAll("#appTabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
-  ["ex","ins","nut","pro"].forEach(k=>$("#tab-"+k).classList.toggle("hidden",k!==t));
-  ({ex:renderEx,ins:renderIns,nut:renderNut,pro:renderPro})[t]();
+  ["ex","pro"].forEach(k=>$("#tab-"+k).classList.toggle("hidden",k!==t));
+  ({ex:renderEx,pro:renderPro})[t]();
 }
 $("#appTabs").onclick=e=>{const b=e.target.closest("button");if(b)showTab(b.dataset.tab);};
 
