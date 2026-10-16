@@ -245,7 +245,7 @@ td.up{color:var(--plate);font-weight:600}
       <button class="ghost" id="logout" type="button">Change user</button>
     </div>
   </header>
-  <nav class="tabs" role="tablist">
+  <nav class="tabs" role="tablist" id="appTabs">
     <button role="tab" data-tab="ex" aria-selected="true">Exercises</button>
     <button role="tab" data-tab="ins" aria-selected="false">Instructions</button>
     <button role="tab" data-tab="nut" aria-selected="false">Nutrition</button>
@@ -351,11 +351,11 @@ $("#progBtn").onclick=()=>showChooser();
 
 /* ---------- tabs ---------- */
 function showTab(t){
-  document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
+  document.querySelectorAll("#appTabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
   ["ex","ins","nut","pro"].forEach(k=>$("#tab-"+k).classList.toggle("hidden",k!==t));
   ({ex:renderEx,ins:renderIns,nut:renderNut,pro:renderPro})[t]();
 }
-document.querySelector("nav.tabs").onclick=e=>{const b=e.target.closest("button");if(b)showTab(b.dataset.tab);};
+$("#appTabs").onclick=e=>{const b=e.target.closest("button");if(b)showTab(b.dataset.tab);};
 
 /* ---------- progress ---------- */
 // Stored on this device only, per user name: {w:[{d,kg}], l:[{d,ex,kg,reps}], goal}
