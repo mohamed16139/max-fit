@@ -38,6 +38,21 @@ input{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--p
 .err{color:var(--plate);font-size:14px;min-height:20px;margin:-4px 0 10px}
 .btn{width:100%;font:600 18px "Barlow Condensed",sans-serif;background:var(--plate);color:var(--on-plate);border:0;border-radius:8px;padding:12px;cursor:pointer;letter-spacing:.3px}
 
+/* program chooser */
+.choose .wrap{max-width:1000px}
+.choose h1{font-size:40px;line-height:1;margin:8px 0 4px}
+.progs{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:18px 0 14px}
+.prog{background:var(--card);border:1px solid var(--line);border-top:5px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column}
+.prog.cur{border-top-color:var(--plate)}
+.progh{display:flex;align-items:center;gap:8px}.prog h2{margin:0;font-size:28px}
+.progm{display:flex;gap:6px;margin:8px 0}
+.prog p{margin:0 0 10px;color:var(--steel);font-size:14px}
+.progd{list-style:none;padding:0;margin:0 0 14px;flex:1}
+.progd li{display:flex;gap:10px;padding:4px 0;border-top:1px solid var(--line);font-size:14px}
+.progd li b{color:var(--plate);width:14px;text-align:right;font-family:"Barlow Condensed",sans-serif}
+.progd li.rd{color:var(--steel)}.progd li.rd b{color:var(--steel)}
+#chooseBack{width:100%;padding:12px}
+
 /* app */
 .wrap{max-width:1000px;margin:0 auto;padding:20px 16px 48px}
 header{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
@@ -196,14 +211,23 @@ td.up{color:var(--plate);font-weight:600}
 <section class="login" id="login">
   <form class="login-card" id="loginForm" novalidate>
     <h1>Body Recomp Program</h1>
-    <p>Lose fat, build muscle. 4 training days a week.</p>
+    <p>Lose fat, build muscle. Pick a training plan next.</p>
     <label for="nm">Name</label>
     <input id="nm" autocomplete="given-name" placeholder="Your name">
     <label for="ag">Age</label>
     <input id="ag" type="number" inputmode="numeric" min="10" max="100" placeholder="Your age">
     <div class="err" id="err" role="alert"></div>
-    <button class="btn" type="submit">Start program</button>
+    <button class="btn" type="submit">Continue</button>
   </form>
+</section>
+
+<section class="choose hidden" id="choose" aria-labelledby="chooseH">
+  <div class="wrap">
+    <h1 id="chooseH">Choose your program</h1>
+    <p class="sub" id="chooseSub">Pick the plan that fits your week. You can switch any time.</p>
+    <div class="progs" id="progs"></div>
+    <button class="ghost hidden" id="chooseBack" type="button">Keep my current program</button>
+  </div>
 </section>
 
 <div class="wrap hidden" id="app">
@@ -211,6 +235,7 @@ td.up{color:var(--plate);font-weight:600}
     <div><h1 id="hello"></h1><div class="sub" id="who"></div></div>
     <div class="hdr-actions">
       <button class="ghost" id="themeBtn" type="button">Switch theme</button>
+      <button class="ghost" id="progBtn" type="button">Program</button>
       <button class="ghost" id="logout" type="button">Change user</button>
     </div>
   </header>
@@ -228,7 +253,9 @@ td.up{color:var(--plate);font-weight:600}
 
 <script>
 const $=s=>document.querySelector(s);
-const PLAN=[
+// Each program is a 7-day week. Exercise rows: [name, reps, sets, rest].
+const PROGRAMS={
+ recomp:{name:"Body Recomp",days:4,level:"Intermediate",about:"Push, pull and legs plus a full-body day. Built to lose fat and build muscle at the same time.",plan:[
  {d:"Day 1",t:"Push",ex:[["Flat Bench Press","4–6",3,"90–120 s"],["DB Shoulder Press","8–10",2,"60–90 s"],["Incline DB Press","10–12",4,"60–90 s"],["DB Front Raises","10–12",2,"60–90 s"],["DB Lateral Raises","10–12",2,"60–90 s"],["Chest Flies (Machine)","12–15",3,"60–90 s"],["Cable Triceps Pushdown (rope)","12–15",3,"60–90 s"],["Overhead Triceps Extension (DB / rope)","10–12",3,"60–90 s"],["Shrugs","15",2,"90–120 s"]]},
  {d:"Day 2",t:"Pull + Biceps",ex:[["Lat Pulldown","8–10",3,"60–90 s"],["Rear Delt Flies (Machine)","12–15",3,"60–90 s"],["Wide Grip Row (Machine)","10–12",3,"60–90 s"],["One Arm Row (Machine)","12–15",3,"60–90 s"],["Close Grip Cable Row","8–10",2,"60–90 s"],["Standing DB Curls","10–12",3,"60–90 s"],["Hammer Curls","10–12",3,"60–90 s"],["Lower Back Exercise","12–15",3,"60–90 s"],["DB Romanian Deadlift","10–12",2,"90–120 s"]]},
  {d:"Day 3",t:"Legs + Abs + Arms",ex:[["Barbell Squat (strength)","4–6",3,"90–120 s"],["Leg Press","8–10",3,"60–90 s"],["One-Leg Leg Curls (hamstring)","10–12",2,"60–90 s"],["Leg Extension","12–15",3,"60–90 s"],["Leg Curls","12–15",3,"60–90 s"],["Standing Calf Raises","10–12",3,"60–90 s"],["Crunches","To failure",3,"60–90 s"],["Leg Raises","To failure",3,"60–90 s"],["EZ Bar Curls","10–12",2,"60–90 s"],["Rope Triceps Pushdown","12–15",2,"60–90 s"]]},
@@ -236,7 +263,34 @@ const PLAN=[
  {d:"Day 5",t:"Active rest",rest:"Light walking, mobility drills or stretching."},
  {d:"Day 6",t:"Full body",ex:[["Overhead Barbell Shoulder Press","4–6",2,"90–120 s"],["DB Lateral Raises","10–12",2,"60–90 s"],["Reverse Grip Lat Pulldown","10–12",2,"60–90 s"],["Rear Delt Flies (Machine)","12–15",2,"60–90 s"],["Chest Flies (Machine)","12–15",4,"60–90 s"],["DB Preacher Curls","10–12",3,"60–90 s"],["Reverse Grip Triceps Pushdown","10–12",3,"60–90 s"],["Leg Press","8–10",2,"60–90 s"],["Leg Extension","12–15",2,"60–90 s"],["Leg Curls","12–15",3,"60–90 s"],["Standing Calf Raises","10–12",3,"60–90 s"],["Crunches","To failure",3,"60–90 s"],["Leg Raises","To failure",3,"60–90 s"]],split:7},
  {d:"Day 7",t:"Rest",rest:"Full rest. Sleep well and let your muscles recover."}
-];
+]},
+ fullbody:{name:"Full Body",days:3,level:"Beginner",about:"Train your whole body 3 times a week with a rest day in between. The best start if you're new or short on time.",plan:[
+  {d:"Day 1",t:"Full body A",ex:[["Barbell Squat (strength)","6–8",3,"2–3 min"],["Flat Bench Press","6–8",3,"2–3 min"],["Barbell Row","8–10",3,"90–120 s"],["DB Shoulder Press","10–12",2,"60–90 s"],["Leg Curls","12–15",2,"60–90 s"],["Standing DB Curls","10–12",2,"60–90 s"],["Cable Triceps Pushdown (rope)","12–15",2,"60–90 s"],["Plank","30–60 s",3,"60 s"]]},
+  {d:"Day 2",t:"Active rest",rest:"Light walking, mobility drills or stretching."},
+  {d:"Day 3",t:"Full body B",ex:[["Romanian Deadlift","8–10",3,"2–3 min"],["Incline DB Press","8–10",3,"90–120 s"],["Lat Pulldown","8–10",3,"90–120 s"],["Walking Lunges (DB)","10–12 / leg",2,"90 s"],["DB Lateral Raises","12–15",3,"60 s"],["Hammer Curls","10–12",2,"60–90 s"],["Overhead Triceps Extension (DB / rope)","10–12",2,"60–90 s"],["Standing Calf Raises","12–15",3,"60 s"]]},
+  {d:"Day 4",t:"Active rest",rest:"Light walking, mobility drills or stretching."},
+  {d:"Day 5",t:"Full body C",ex:[["Leg Press","10–12",3,"90–120 s"],["Overhead Barbell Shoulder Press","6–8",3,"2–3 min"],["Pull-Ups","To failure",3,"90–120 s"],["Chest Flies (Machine)","12–15",2,"60–90 s"],["Close Grip Cable Row","10–12",3,"60–90 s"],["Leg Extension","12–15",2,"60 s"],["Crunches","To failure",3,"60 s"]]},
+  {d:"Day 6",t:"Active rest",rest:"Light walking, mobility drills or stretching."},
+  {d:"Day 7",t:"Rest",rest:"Full rest. Sleep well and let your muscles recover."}]},
+ upperlower:{name:"Upper / Lower",days:4,level:"Intermediate",about:"Two upper-body and two lower-body days. One heavy strength day and one volume day for each half.",plan:[
+  {d:"Day 1",t:"Upper · strength",ex:[["Flat Bench Press","4–6",3,"2–3 min"],["Barbell Row","6–8",3,"2–3 min"],["Overhead Barbell Shoulder Press","6–8",3,"2–3 min"],["Lat Pulldown","8–10",3,"90–120 s"],["EZ Bar Curls","10–12",2,"60–90 s"],["Skull Crushers (EZ bar)","10–12",2,"60–90 s"]]},
+  {d:"Day 2",t:"Lower · strength",ex:[["Barbell Squat (strength)","4–6",3,"2–3 min"],["Romanian Deadlift","6–8",3,"2–3 min"],["Leg Press","10–12",3,"90–120 s"],["Leg Curls","10–12",3,"60–90 s"],["Standing Calf Raises","10–12",4,"60 s"],["Hanging Leg Raises","To failure",3,"60 s"]]},
+  {d:"Day 3",t:"Active rest",rest:"Light walking, mobility drills or stretching."},
+  {d:"Day 4",t:"Upper · volume",ex:[["Incline DB Press","8–10",3,"90–120 s"],["Close Grip Cable Row","10–12",3,"90 s"],["DB Shoulder Press","10–12",3,"90 s"],["Chest Flies (Machine)","12–15",3,"60–90 s"],["Face Pulls","12–15",3,"60 s"],["DB Lateral Raises","12–15",3,"60 s"],["Hammer Curls","10–12",2,"60–90 s"],["Cable Triceps Pushdown (rope)","12–15",2,"60–90 s"]]},
+  {d:"Day 5",t:"Lower · volume",ex:[["Bulgarian Split Squat","8–10 / leg",3,"90–120 s"],["Hip Thrust","8–10",3,"90–120 s"],["Leg Extension","12–15",3,"60–90 s"],["One-Leg Leg Curls (hamstring)","12–15",3,"60–90 s"],["Seated Calf Raises","12–15",3,"60 s"],["Crunches","To failure",3,"60 s"]]},
+  {d:"Day 6",t:"Active rest",rest:"Light walking, mobility drills or stretching."},
+  {d:"Day 7",t:"Rest",rest:"Full rest. Sleep well and let your muscles recover."}]},
+ bodypart:{name:"Body Part Split",days:5,level:"Advanced",about:"One main muscle group a day: chest, back, shoulders, legs, then arms. High volume for each muscle once a week.",plan:[
+  {d:"Day 1",t:"Chest",ex:[["Flat Bench Press","6–8",4,"2–3 min"],["Incline DB Press","8–10",3,"90–120 s"],["Chest Flies (Machine)","12–15",3,"60–90 s"],["Cable Crossover","12–15",3,"60–90 s"],["Dips","To failure",3,"90 s"],["Crunches","To failure",3,"60 s"]]},
+  {d:"Day 2",t:"Back",ex:[["Deadlift","4–6",3,"2–3 min"],["Pull-Ups","To failure",3,"90–120 s"],["Barbell Row","8–10",3,"90–120 s"],["Lat Pulldown","10–12",3,"90 s"],["One Arm Row (Machine)","10–12",3,"60–90 s"],["Lower Back Exercise","12–15",2,"60–90 s"]]},
+  {d:"Day 3",t:"Shoulders",ex:[["Overhead Barbell Shoulder Press","6–8",4,"2–3 min"],["Arnold Press","8–10",3,"90 s"],["DB Lateral Raises","12–15",4,"60 s"],["Rear Delt Flies (Machine)","12–15",3,"60 s"],["DB Front Raises","10–12",2,"60 s"],["Shrugs","12–15",3,"60–90 s"]]},
+  {d:"Day 4",t:"Legs",ex:[["Barbell Squat (strength)","6–8",4,"2–3 min"],["Leg Press","10–12",3,"90–120 s"],["Romanian Deadlift","8–10",3,"2 min"],["Leg Extension","12–15",3,"60–90 s"],["Leg Curls","12–15",3,"60–90 s"],["Standing Calf Raises","12–15",4,"60 s"]]},
+  {d:"Day 5",t:"Arms + Abs",ex:[["EZ Bar Curls","8–10",3,"90 s"],["Close-Grip Bench Press","8–10",3,"90–120 s"],["Hammer Curls","10–12",3,"60–90 s"],["Skull Crushers (EZ bar)","10–12",3,"60–90 s"],["Concentration Curls","12–15",2,"60 s"],["Rope Triceps Pushdown","12–15",2,"60 s"],["Hanging Leg Raises","To failure",3,"60 s"]]},
+  {d:"Day 6",t:"Active rest",rest:"Light walking, mobility drills or stretching."},
+  {d:"Day 7",t:"Rest",rest:"Full rest. Sleep well and let your muscles recover."}]}
+};
+let PLAN=PROGRAMS.recomp.plan;
+const ALL_EX=[...new Set(Object.values(PROGRAMS).flatMap(p=>p.plan.flatMap(d=>(d.ex||[]).map(e=>e[0]))))];
 let day=0;
 
 /* ---------- login ---------- */
@@ -248,17 +302,35 @@ $("#loginForm").onsubmit=e=>{
   const name=$("#nm").value.trim(), age=parseInt($("#ag").value,10);
   if(!name){$("#err").textContent="Enter your name to continue.";$("#nm").focus();return;}
   if(!age||age<10||age>100){$("#err").textContent="Enter an age between 10 and 100.";$("#ag").focus();return;}
-  user={name,age}; setUser(user); openApp();
+  const prev=getUser();user={name,age,prog:prev&&prev.name===name?prev.prog:undefined};setUser(user);
+  user.prog&&PROGRAMS[user.prog]?openApp():showChooser();
 };
 $("#logout").onclick=()=>{setUser(null);user=null;$("#nm").value="";$("#ag").value="";$("#err").textContent="";
-  $("#app").classList.add("hidden");$("#login").classList.remove("hidden");$("#nm").focus();};
+  ["app","choose"].forEach(k=>$("#"+k).classList.add("hidden"));$("#login").classList.remove("hidden");$("#nm").focus();};
 function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function openApp(){
-  $("#login").classList.add("hidden");$("#app").classList.remove("hidden");
+  const pr=PROGRAMS[user.prog]||PROGRAMS.recomp;PLAN=pr.plan;if(!PLAN[day])day=0;
+  ["login","choose"].forEach(k=>$("#"+k).classList.add("hidden"));$("#app").classList.remove("hidden");
   $("#hello").textContent="Hi, "+user.name;
-  $("#who").textContent=`Age ${user.age} · Body recomposition program · 4 training days a week`;
+  $("#who").textContent=`Age ${user.age} · ${pr.name} program · ${pr.days} training days a week`;
   showTab("ex");
 }
+function showChooser(){
+  const cur=user.prog&&PROGRAMS[user.prog]?user.prog:null;
+  ["login","app"].forEach(k=>$("#"+k).classList.add("hidden"));$("#choose").classList.remove("hidden");
+  $("#chooseSub").textContent=cur?"Switch to another plan. Your logged sets and weigh-ins stay.":`Hi ${user.name}, pick the plan that fits your week. You can switch any time.`;
+  $("#chooseBack").classList.toggle("hidden",!cur);
+  $("#progs").innerHTML=Object.entries(PROGRAMS).map(([k,p])=>`<article class="prog${k===cur?" cur":""}">
+   <div class="progh"><h2>${p.name}</h2>${k===cur?'<span class="donetag">Current</span>':""}</div>
+   <div class="progm"><span class="pill">${p.days} days a week</span><span class="pill r">${p.level}</span></div>
+   <p>${p.about}</p>
+   <ol class="progd">${p.plan.map(d=>`<li${d.rest?' class="rd"':""}><b>${d.d.replace("Day ","")}</b>${d.t}</li>`).join("")}</ol>
+   <button class="btn" type="button" data-prog="${k}">${k===cur?"Keep this program":"Start "+p.name}</button></article>`).join("");
+  window.scrollTo(0,0);
+}
+$("#progs").onclick=e=>{const b=e.target.closest("[data-prog]");if(!b)return;if(b.dataset.prog!==user.prog)day=0;user.prog=b.dataset.prog;setUser(user);openApp();window.scrollTo(0,0);};
+$("#chooseBack").onclick=()=>openApp();
+$("#progBtn").onclick=()=>showChooser();
 
 /* ---------- tabs ---------- */
 function showTab(t){
@@ -281,7 +353,7 @@ let proEx=null;
 // Single-series line chart with hover crosshair. pts: [{d,v,tip}] sorted by date.
 /* ---------- exercises ---------- */
 // Start/finish photos from free-exercise-db (public domain), stored in img/ex/.
-const EX_IMG={"Flat Bench Press":"Barbell_Bench_Press_-_Medium_Grip","DB Shoulder Press":"Dumbbell_Shoulder_Press","Incline DB Press":"Incline_Dumbbell_Press","DB Front Raises":"Front_Dumbbell_Raise","DB Lateral Raises":"Side_Lateral_Raise","Chest Flies (Machine)":"Butterfly","Cable Triceps Pushdown (rope)":"Triceps_Pushdown_-_Rope_Attachment","Overhead Triceps Extension (DB / rope)":"Cable_Rope_Overhead_Triceps_Extension","Shrugs":"Dumbbell_Shrug","Lat Pulldown":"Wide-Grip_Lat_Pulldown","Rear Delt Flies (Machine)":"Reverse_Machine_Flyes","Wide Grip Row (Machine)":"Leverage_High_Row","One Arm Row (Machine)":"Leverage_Iso_Row","Close Grip Cable Row":"Seated_Cable_Rows","Standing DB Curls":"Dumbbell_Bicep_Curl","Hammer Curls":"Hammer_Curls","Lower Back Exercise":"Hyperextensions_Back_Extensions","DB Romanian Deadlift":"Stiff-Legged_Dumbbell_Deadlift","Barbell Squat (strength)":"Barbell_Squat","Leg Press":"Leg_Press","One-Leg Leg Curls (hamstring)":"Standing_Leg_Curl","Leg Extension":"Leg_Extensions","Leg Curls":"Lying_Leg_Curls","Standing Calf Raises":"Standing_Calf_Raises","Crunches":"Crunches","Leg Raises":"Flat_Bench_Lying_Leg_Raise","EZ Bar Curls":"EZ-Bar_Curl","Rope Triceps Pushdown":"Triceps_Pushdown_-_Rope_Attachment","Overhead Barbell Shoulder Press":"Barbell_Shoulder_Press","Reverse Grip Lat Pulldown":"Underhand_Cable_Pulldowns","DB Preacher Curls":"One_Arm_Dumbbell_Preacher_Curl","Reverse Grip Triceps Pushdown":"Reverse_Grip_Triceps_Pushdown"};
+const EX_IMG={"Flat Bench Press":"Barbell_Bench_Press_-_Medium_Grip","DB Shoulder Press":"Dumbbell_Shoulder_Press","Incline DB Press":"Incline_Dumbbell_Press","DB Front Raises":"Front_Dumbbell_Raise","DB Lateral Raises":"Side_Lateral_Raise","Chest Flies (Machine)":"Butterfly","Cable Triceps Pushdown (rope)":"Triceps_Pushdown_-_Rope_Attachment","Overhead Triceps Extension (DB / rope)":"Cable_Rope_Overhead_Triceps_Extension","Shrugs":"Dumbbell_Shrug","Lat Pulldown":"Wide-Grip_Lat_Pulldown","Rear Delt Flies (Machine)":"Reverse_Machine_Flyes","Wide Grip Row (Machine)":"Leverage_High_Row","One Arm Row (Machine)":"Leverage_Iso_Row","Close Grip Cable Row":"Seated_Cable_Rows","Standing DB Curls":"Dumbbell_Bicep_Curl","Hammer Curls":"Hammer_Curls","Lower Back Exercise":"Hyperextensions_Back_Extensions","DB Romanian Deadlift":"Stiff-Legged_Dumbbell_Deadlift","Barbell Squat (strength)":"Barbell_Squat","Leg Press":"Leg_Press","One-Leg Leg Curls (hamstring)":"Standing_Leg_Curl","Leg Extension":"Leg_Extensions","Leg Curls":"Lying_Leg_Curls","Standing Calf Raises":"Standing_Calf_Raises","Crunches":"Crunches","Leg Raises":"Flat_Bench_Lying_Leg_Raise","EZ Bar Curls":"EZ-Bar_Curl","Rope Triceps Pushdown":"Triceps_Pushdown_-_Rope_Attachment","Overhead Barbell Shoulder Press":"Barbell_Shoulder_Press","Reverse Grip Lat Pulldown":"Underhand_Cable_Pulldowns","DB Preacher Curls":"One_Arm_Dumbbell_Preacher_Curl","Reverse Grip Triceps Pushdown":"Reverse_Grip_Triceps_Pushdown","Deadlift":"Barbell_Deadlift","Pull-Ups":"Pullups","Barbell Row":"Bent_Over_Barbell_Row","Romanian Deadlift":"Romanian_Deadlift","Walking Lunges (DB)":"Dumbbell_Lunges","Dips":"Dips_-_Chest_Version","Plank":"Plank","Cable Crossover":"Cable_Crossover","Face Pulls":"Face_Pull","Skull Crushers (EZ bar)":"EZ-Bar_Skullcrusher","Seated Calf Raises":"Seated_Calf_Raise","Hip Thrust":"Barbell_Hip_Thrust","Close-Grip Bench Press":"Close-Grip_Barbell_Bench_Press","Arnold Press":"Arnold_Dumbbell_Press","Concentration Curls":"Concentration_Curls","Hanging Leg Raises":"Hanging_Leg_Raise","Bulgarian Split Squat":"Split_Squat_with_Dumbbells"};
 function renderEx(){
   const D=PLAN[day],P=getPro();
   let h='<div class="week">'+PLAN.map((p,i)=>`<button class="dayb${p.rest?' rest':''}" aria-pressed="${i===day}" data-i="${i}"><small>${p.d}</small><b>${p.t}</b></button>`).join("")+'</div>';
@@ -292,7 +364,7 @@ function renderEx(){
     D.ex.forEach((e,i)=>{
       if(D.split===i) h+='<div class="group">Lower body and abs</div>';
       h+=`<div class="ex" data-n="${esc(e[0])}" data-sets="${e[2]}"><div class="i">${i+1}</div><button type="button" class="name" aria-expanded="false">${e[0]}</button>
-      <div class="meta"><span class="pill">${e[2]} sets</span><span class="pill">${e[1]} reps</span><span class="pill r">Rest ${e[3]}</span></div>
+      <div class="meta"><span class="pill">${e[2]} sets</span><span class="pill">${repLabel(e[1])}</span><span class="pill r">Rest ${e[3]}</span></div>
       <div class="exlog"></div></div><div class="shots hidden"></div>`;
     });
   }
@@ -321,6 +393,7 @@ function renderEx(){
     Q.l.push({d:today(),ex:name,kg,reps,s:set});setPro(Q);delete exSel[name];paintEx(row,Q);dayDone();
     if(!row.classList.contains("done"))row.querySelector("input[name=kg]").focus();};
 }
+const repLabel=r=>/\d s$/.test(r)?r+" hold":r.includes(" / leg")?r.replace(" / leg"," reps / leg"):r+" reps";
 const exSel={}; // set picked by hand per exercise; otherwise the next unlogged one
 const exEdit={}; // finished exercises unlocked for editing
 const setName=s=>s?"Set "+s:"Warm-up";
@@ -569,7 +642,7 @@ function lineChart(el,pts,unit,goal){
 }
 
 function renderPro(){
-  const P=getPro(),W=P.l.filter(e=>e.s!==0),logged=[...new Set(W.map(e=>e.ex))],order=[...new Set(PLAN.flatMap(d=>(d.ex||[]).map(e=>e[0])))];
+  const P=getPro(),W=P.l.filter(e=>e.s!==0),logged=[...new Set(W.map(e=>e.ex))],order=ALL_EX;
   logged.sort((x,y)=>order.indexOf(x)-order.indexOf(y));
   if(!proEx||!logged.includes(proEx))proEx=(W.length&&W[W.length-1].ex)||logged[0];
   const w=[...P.w].sort((a,b)=>a.d<b.d?-1:1),last=w[w.length-1],first=w[0];
@@ -651,7 +724,7 @@ function renderPro(){
  }
 })();
 
-if(user&&user.name) openApp(); else $("#nm").focus();
+if(user&&user.name) (user.prog&&PROGRAMS[user.prog]?openApp():showChooser()); else $("#nm").focus();
 </script>
 </body>
 </html>
