@@ -225,8 +225,14 @@ td.up{color:var(--plate);font-weight:600}
   <div class="wrap">
     <h1 id="chooseH">Choose your program</h1>
     <p class="sub" id="chooseSub">Pick the plan that fits your week. You can switch any time.</p>
-    <div class="progs" id="progs"></div>
-    <button class="ghost hidden" id="chooseBack" type="button">Keep my current program</button>
+    <nav class="tabs" role="tablist" id="chTabs" style="margin-top:16px">
+      <button role="tab" data-ct="progs" aria-selected="true">Programs</button>
+      <button role="tab" data-ct="ins" aria-selected="false">Instructions</button>
+      <button role="tab" data-ct="nut" aria-selected="false">Nutrition</button>
+    </nav>
+    <div id="ch-progs"><div class="progs" id="progs"></div>
+    <button class="ghost hidden" id="chooseBack" type="button">Keep my current program</button></div>
+    <div id="ch-slot"></div>
   </div>
 </section>
 
@@ -311,6 +317,7 @@ function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;
 function openApp(){
   const pr=PROGRAMS[user.prog]||PROGRAMS.recomp;PLAN=pr.plan;if(!PLAN[day])day=0;
   ["login","choose"].forEach(k=>$("#"+k).classList.add("hidden"));$("#app").classList.remove("hidden");
+  ["ins","nut"].forEach(k=>$("#app").insertBefore($("#tab-"+k),$("#tab-pro")));
   $("#hello").textContent="Hi, "+user.name;
   $("#who").textContent=`Age ${user.age} · ${pr.name} program · ${pr.days} training days a week`;
   showTab("ex");
@@ -320,6 +327,7 @@ function showChooser(){
   ["login","app"].forEach(k=>$("#"+k).classList.add("hidden"));$("#choose").classList.remove("hidden");
   $("#chooseSub").textContent=cur?"Switch to another plan. Your logged sets and weigh-ins stay.":`Hi ${user.name}, pick the plan that fits your week. You can switch any time.`;
   $("#chooseBack").classList.toggle("hidden",!cur);
+  chTab("progs");
   $("#progs").innerHTML=Object.entries(PROGRAMS).map(([k,p])=>`<article class="prog${k===cur?" cur":""}">
    <div class="progh"><h2>${p.name}</h2>${k===cur?'<span class="donetag">Current</span>':""}</div>
    <div class="progm"><span class="pill">${p.days} days a week</span><span class="pill r">${p.level}</span></div>
@@ -330,6 +338,15 @@ function showChooser(){
 }
 $("#progs").onclick=e=>{const b=e.target.closest("[data-prog]");if(!b)return;if(b.dataset.prog!==user.prog)day=0;user.prog=b.dataset.prog;setUser(user);openApp();window.scrollTo(0,0);};
 $("#chooseBack").onclick=()=>openApp();
+// Instructions and Nutrition don't depend on a program, so the picker shows them too (the same pages, moved in).
+function chTab(t){
+  document.querySelectorAll("#chTabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.ct===t));
+  $("#ch-progs").classList.toggle("hidden",t!=="progs");
+  $("#chooseSub").classList.toggle("hidden",t!=="progs");$("#chooseH").textContent={progs:"Choose your program",ins:"Instructions",nut:"Nutrition"}[t];
+  ["ins","nut"].forEach(k=>{const el=$("#tab-"+k);if(k===t){$("#ch-slot").appendChild(el);el.classList.remove("hidden");}else el.classList.add("hidden");});
+  if(t!=="progs")({ins:renderIns,nut:renderNut})[t]();
+}
+$("#chTabs").onclick=e=>{const b=e.target.closest("button");if(b)chTab(b.dataset.ct);};
 $("#progBtn").onclick=()=>showChooser();
 
 /* ---------- tabs ---------- */
