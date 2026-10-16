@@ -1,0 +1,25 @@
+# Manga Fit
+
+Training and nutrition app. Static site (no build step) deployed on Vercel from `main`.
+
+## Structure
+- `index.html` — app shell. `css/app.css` — design system (dark/light tokens, components).
+- `js/app.js` — routing (`#/training/*`, `#/nutrition/*`, `#/me`, `#/profiles`, `#/new`, `#/edit`) and the per-profile context.
+- `js/core/` — logic with no DOM: `nutrition.js` (Mifflin–St Jeor targets, unit conversion, meal generator, food replacement),
+  `training.js` (exercise search, equivalent-exercise matching, plan copy), `store.js` (profiles, persistence, migration), `starter.js`.
+- `js/ui/` — screens: `profiles.js`, `training.js`, `nutrition.js`, shared toolkit `dom.js`.
+- `js/data/` — generated data. Don't edit by hand:
+  - `foods.js` ← `scripts/build_foods.py` from USDA FoodData Central SR Legacy (April 2018), per 100 g, with densities for liquids.
+  - `exercises.js` + `img/ex/` ← `scripts/build_exercises.py` from free-exercise-db (public domain).
+  - `programs.js` — ready-made workout programs.
+- `js/icons-data.js` — Lucide icons (ISC).
+
+## Data
+Everything is stored in the browser (`localStorage`, key `mangafit.db`): `{schema, activeProfileId, profiles}`.
+Each profile owns its diet plans, workout plans, logs, weights and preferences. All writes go through
+`store.updateProfile(id, fn)`, which re-reads storage and only touches that profile. Data from the first version of the
+app (`recompUser`, `recompProgress:*` …) is migrated once on first load; the old keys are left in place.
+
+## Tests
+`./scripts/test.sh` runs `tests/index.html` (unit tests) and `tests/e2e.html` (user flows A–G against the real app) in
+headless Chrome. `tests/` and `scripts/` are excluded from deploys (`.vercelignore`) — `tests/seed.html` resets local data.

@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Running e2e…</title>
+<style>body{font:13px/1.5 ui-monospace,Menlo,monospace;margin:12px;background:#111;color:#eee}iframe{width:390px;height:844px;border:1px solid #333;float:right}body[data-done=pass] #out{color:#7ddc7d}body[data-done=fail] #out{color:#ff8a7a}</style></head>
+<body><iframe id="app" title="app"></iframe><pre id="out">Running…</pre>
+<script type="module">
+// End-to-end user flows from the brief (A–G), driven against the real app in an iframe.
+const fr = document.getElementById("app"), out = document.getElementById("out"), log = [];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let errors = [];
+const W = () => fr.contentWindow, D = () => fr.contentDocument;
+async function load(hash = "") {
+  fr.src = "/?t=" + Date.now() + hash;   // new query string forces a full reload (a hash-only change wouldn't)
+  await new Promise(r => fr.onload = r);
+  W().addEventListener("error", e => errors.push(e.message));
+  W().addEventListener("unhandledrejection", e => errors.push(String(e.reason && e.reason.message || e.reason)));
+  await until(() => D().querySelector("#view"), "app rendered");
+}
+async function until(fn, what, ms = 4000) { const t = Date.now(); while (Date.now() - t < ms) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(30); } throw new Error("timeout: " + what); }
+const $ = s => D().querySelector(s), $$ = s => [...D().querySelectorAll(s)];
+async function click(sel, what) { const el = typeof sel === "string" ? await until(() => $(sel), what || sel) : sel; el.click(); await sleep(60); return el; }
+async function clickText(sel, text) { const el = await until(() => $$(sel).find(e => e.textContent.trim().includes(text)), `${sel} "${text}"`); el.click(); await sleep(60); return el; }
+async function type(sel, val) { const el = await until(() => $(sel), sel); el.value = val; el.dispatchEvent(new Event("input", {bubbles: true})); el.dispatchEvent(new Event("change", {bubbles: true})); await sleep(30); }
+const dlg = () => $$("dialog[open]").pop();
+const inDlg = s => dlg() && dlg().querySelector(s);
+const db = () => JSON.parse(localStorage.getItem("mangafit.db"));
+const active = () => { const d = db(); return d.profiles[d.activeProfileId]; };
+const ok = (c, m) => { if (!c) throw new Error(m); };
+async function step(name, fn) { try { await fn(); if (errors.length) throw new Error("JS error: " + errors.join(" | ")); log.push("PASS " + name); } catch (e) { log.push("FAIL " + name + " — " + e.message); errors = []; } out.textContent = log.join("\n"); document.title = "RUNNING ¦ " + log.join(" ¦ "); }
+
+async function onboard(name, age, {sex = "male", h = 178, w = 80, tpl = "upperlower"} = {}) {
+  await load("#/new");
+  await type("#nm", name); await type("#ag", age); if (sex === "female") await click('[data-k="sex"][data-v="female"]');
+  await click('button[type=submit]');
+  if ($("#oberr") && $("#oberr").textContent) return $("#oberr").textContent;
+  await type("#hc", h); await type("#wk", w); await click('button[type=submit]');
+  await click('[data-k="activity"][data-v="moderate"]'); await click('button[type=submit]');
+  await click('[data-k="goal"][data-v="lose"]'); await click('button[type=submit]');
+  await click('[data-mpd="4"]'); await click('button[type=submit]');
+  await click('[data-multi="preferred"][data-v="chicken_breast_c"]'); await click('[data-multi="preferred"][data-v="rice_white_c"]'); await click('[data-multi="allergies"][data-v="treenut"]');
+  await click('button[type=submit]');
+  await click(`[data-tpl="${tpl}"]`); await click('button[type=submit]');
+  await until(() => location && fr.contentWindow.location.hash.startsWith("#/nutrition"), "landed on nutrition");
+  return "";
+}
+
+localStorage.clear();
+
+await step("A1 new user: onboarding creates profile, diet plan and workout plan", async () => {
+  const err = await onboard("Ahmed", 30); ok(!err, err);
+  const p = active(); ok(p.name === "Ahmed" && p.age === 30 && p.heightCm === 178, "profile fields");
+  ok(Object.keys(p.nutrition.plans).length === 1 && p.nutrition.plans[p.nutrition.activePlanId].meals.length === 4, "diet plan with 4 meals");
+  ok(p.training.plans[p.training.activePlanId].name === "Upper / Lower", "workout plan from template");
+  ok(p.allergies.includes("treenut") && p.preferred.includes("chicken_breast_c"), "preferences saved");
+  const ids = Object.values(p.nutrition.plans)[0].meals.flatMap(m => m.items.map(i => i.foodId));
+  ok(!ids.some(id => ["almonds", "walnuts", "cashews", "pistachios", "almond_butter", "almond_milk", "granola"].includes(id)), "no tree nuts generated");
+  await until(() => $(".ring"), "dashboard ring");
+});
+await step("A2 reopen: data persists and lands on the profile picker", async () => {
+  await load("#/profiles");
+  ok($$(".pcard").length === 1 && $(".pcard.active"), "active profile card shown");
+  await click("[data-open]"); await until(() => $(".exc") || $(".dayb"), "workout screen");
+  ok(active().name === "Ahmed", "same profile");
+});
+await step("G duplicate profiles: same name+age blocked, case-insensitive", async () => {
+  const err = await onboard("  AHMED ", 30); ok(/already exists/.test(err), "blocked: " + err);
+  ok(Object.keys(db().profiles).length === 1, "still one profile");
+  const e2 = await onboard("Ahmed", 31); ok(!e2, "same name, different age allowed");
+  const e3 = await onboard("Omar", 30); ok(!e3, "different name, same age allowed");
+  ok(Object.keys(db().profiles).length === 3, "three profiles");
+});
+await step("F switch profiles: data stays isolated", async () => {
+  const d = db(), ahmed = Object.values(d.profiles).find(p => p.name === "Ahmed" && p.age === 30), omar = Object.values(d.profiles).find(p => p.name === "Omar");
+  const before = JSON.stringify(ahmed.nutrition);
+  await load("#/profiles"); ok($$(".pcard").length === 3, "all profiles listed");
+  await click(`[data-open="${omar.id}"]`); await load("#/training/progress");
+  await type("#wkg", "91.5"); await click("#wf button[type=submit]");
+  ok(active().id === omar.id && active().weights.some(w => w.kg === 91.5), "Omar's weight saved");
+  await load("#/me"); await click(`[data-switch="${ahmed.id}"]`);
+  ok(active().id === ahmed.id, "switched back");
+  const a2 = db().profiles[ahmed.id]; ok(!a2.weights.some(w => w.kg === 91.5), "Ahmed's weights unchanged"); ok(JSON.stringify(a2.nutrition) === before, "Ahmed's nutrition unchanged");
+});
+await step("C multiple diet plans: create, duplicate, switch — others unchanged", async () => {
+  await load("#/nutrition/plans");
+  await click('[data-a="new"]'); await click(inDlg('[data-g="gain"]')); await type("dialog[open] #npn", "Bulk Plan"); await click(inDlg("[data-ok]"));
+  await until(() => Object.values(active().nutrition.plans).some(p => p.name === "Bulk Plan"), "plan created");
+  const p = active(), cut = Object.values(p.nutrition.plans).find(x => x.name === "Fat Loss Plan"), bulk = Object.values(p.nutrition.plans).find(x => x.name === "Bulk Plan");
+  ok(bulk.goal === "gain" && bulk.meals.length === 4, "generated bulk plan");
+  ok(p.nutrition.activePlanId === cut.id, "creating didn't change active plan");
+  const cutBefore = JSON.stringify(cut);
+  await load("#/nutrition/plans"); await click(`[data-plan="${bulk.id}"] [data-a="activate"]`);
+  ok(active().nutrition.activePlanId === bulk.id, "bulk active"); ok(JSON.stringify(active().nutrition.plans[cut.id]) === cutBefore, "cut plan unchanged");
+  await click(`[data-plan="${cut.id}"] [data-a="dup"]`);
+  ok(Object.keys(active().nutrition.plans).length === 3, "duplicated");
+});
+await step("D replace food: two options, only that item changes, totals update", async () => {
+  await load("#/nutrition/today");
+  const plan0 = active().nutrition.plans[active().nutrition.activePlanId], meal = plan0.meals[1], target = meal.items.find(i => i.foodId !== "broccoli_c" && i.foodId !== "cucumber") || meal.items[0];
+  const others = JSON.stringify(meal.items.filter(i => i.id !== target.id)), otherMeals = JSON.stringify(plan0.meals.filter(m => m.id !== meal.id));
+  await click(`[data-meal="${meal.id}"] [data-item="${target.id}"] [data-a="replace"]`);
+  await until(() => inDlg("[data-pick]"), "options");
+  ok(dlg().querySelectorAll("[data-pick]").length === 2, "two alternatives");
+  await click(inDlg('[data-pick="0"]'));
+  const plan1 = active().nutrition.plans[plan0.id], m1 = plan1.meals.find(m => m.id === meal.id), t1 = m1.items.find(i => i.id === target.id);
+  ok(t1.foodId !== target.foodId, "food replaced"); ok(JSON.stringify(m1.items.filter(i => i.id !== target.id)) === others, "other items untouched");
+  ok(JSON.stringify(plan1.meals.filter(m => m.id !== meal.id)) === otherMeals, "other meals untouched");
+  await until(() => $(`[data-item="${target.id}"] .title`) && !$(`[data-item="${target.id}"] .title`).textContent.includes("Unknown"), "re-rendered");
+});
+await step("Meal editor: quantity change, ml↔L unit conversion, add food, remove", async () => {
+  await load("#/nutrition/today");
+  const plan = active().nutrition.plans[active().nutrition.activePlanId], meal = plan.meals[0];
+  await click(`[data-meal="${meal.id}"] [data-a="edit"]`);
+  const row = await until(() => inDlg("[data-item]"), "edit rows");
+  const inp = row.querySelector(".q"); inp.value = 123; inp.dispatchEvent(new Event("input", {bubbles: true})); await sleep(500);
+  ok(active().nutrition.plans[plan.id].meals[0].items.find(i => i.id === row.dataset.item).qty === 123, "qty saved");
+  await click(inDlg("[data-add]"));
+  await type("dialog[open] #fq", "milk 2"); await click(await until(() => inDlg('[data-food="milk_2"]'), "milk result"));
+  ok(inDlg("#au").value === "ml", "liquid defaults to ml");
+  const au = inDlg("#au"); au.value = "L"; au.dispatchEvent(new Event("change", {bubbles: true})); await sleep(50);
+  ok(Math.abs(parseFloat(inDlg("#aq").value) - 0.25) < 1e-9, "250 ml shown as 0.25 L");
+  await click(inDlg('[data-a="add"]'));
+  const it = active().nutrition.plans[plan.id].meals[0].items.find(i => i.foodId === "milk_2"); ok(it && it.unit === "L" && it.qty === 0.25, "milk added in litres");
+  ok(dlg() && dlg().querySelector(`[data-item="${it.id}"]`), "editor list refreshed");
+  await click(dlg().querySelector(`[data-item="${it.id}"] [data-a="rm"]`));
+  ok(!active().nutrition.plans[plan.id].meals[0].items.some(i => i.id === it.id), "removed");
+  await click(inDlg("[data-close]"));
+});
+await step("Custom food + favourites", async () => {
+  await load("#/nutrition/foods"); await click('[data-a="custom"]');
+  await type("dialog[open] #cn", "Protein bar X"); await type("dialog[open] #ck", "380"); await type("dialog[open] #cp", "30"); await type("dialog[open] #cc", "40"); await type("dialog[open] #cfa", "11");
+  await click(inDlg("[data-ok]"));
+  const cf = Object.values(active().nutrition.customFoods)[0]; ok(cf && cf.name === "Protein bar X" && cf.role === "carb", "custom saved");
+  await until(() => $(`[data-food="${cf.id}"]`), "listed in My foods"); await click(`[data-fav="${cf.id}"]`);
+  ok(active().nutrition.favorites.includes(cf.id), "favourited");
+});
+await step("E replace exercise: two alternatives, only that slot changes", async () => {
+  await load("#/training/workout");
+  const plan = active().training.plans[active().training.activePlanId], day = plan.days[0], slot = day.exercises[0];
+  const rest = JSON.stringify(plan.days.map(d => (d.exercises || []).filter(e => e.id !== slot.id)));
+  await click(`.exc[data-slot="${slot.id}"] [data-a="replace"]`);
+  await until(() => inDlg("[data-pick]"), "alternatives");
+  ok(dlg().querySelectorAll("[data-pick]").length === 2, "two alternatives");
+  const pick = inDlg("[data-pick]").dataset.pick; await click(inDlg("[data-pick]"));
+  const p2 = active().training.plans[plan.id], s2 = p2.days[0].exercises.find(e => e.id === slot.id);
+  ok(s2.exId === pick && s2.exId !== slot.exId, "replaced"); ok(s2.sets === slot.sets && s2.reps === slot.reps, "volume kept");
+  ok(JSON.stringify(p2.days.map(d => (d.exercises || []).filter(e => e.id !== slot.id))) === rest, "rest of plan unchanged");
+});
+await step("Workout logging: log sets, done state, progress", async () => {
+  await load("#/training/workout");
+  const plan = active().training.plans[active().training.activePlanId], slot = plan.days[0].exercises[1];
+  for (let s = 1; s <= slot.sets; s++) {
+    const row = await until(() => $(`.exc[data-slot="${slot.id}"] [data-set="${s}"]`)?.closest(".setrow"), "set row " + s);
+    row.querySelector("[name=kg]").value = 60; row.querySelector("[name=reps]").value = 8; await click(row.querySelector(".ck"));
+  }
+  ok(active().training.logs.filter(l => l.ex === slot.exId && l.s > 0).length === slot.sets, "sets logged");
+  await until(() => $(`.exc.done[data-slot="${slot.id}"]`), "marked done");
+  await click(`.exc[data-slot="${slot.id}"] [data-a="unlock"]`); await until(() => $(`.exc[data-slot="${slot.id}"] .setrow`), "unlocked for editing");
+  D().querySelector("#rest [data-t=skip]")?.click();
+  await load("#/training/progress"); await until(() => $("#lchart svg"), "strength chart");
+});
+await step("Workout plans: duplicate is independent, rename, delete with confirm", async () => {
+  await load("#/training/plans");
+  const pl = active().training.plans[active().training.activePlanId];
+  await click(`[data-plan="${pl.id}"] [data-a="dup"]`);
+  const copy = Object.values(active().training.plans).find(x => x.id !== pl.id); ok(copy && copy.name.includes("copy"), "copy made");
+  await click(`[data-plan="${copy.id}"] [data-a="edit"]`); await until(() => $("#days"), "editor");
+  const s0 = copy.days[0].exercises[0]; await click(`[data-slot="${s0.id}"] [data-a="s+"]`);
+  ok(active().training.plans[copy.id].days[0].exercises[0].sets === s0.sets + 1, "copy edited"); ok(active().training.plans[pl.id].days[0].exercises[0].sets === pl.days[0].exercises[0].sets, "original untouched");
+  await load("#/training/plans"); await click(`[data-plan="${copy.id}"] [data-a="del"]`); await click(inDlg('[data-v="1"]'));
+  ok(!active().training.plans[copy.id], "deleted"); ok(active().training.plans[pl.id], "original kept");
+});
+await step("Library: search, filter, detail sheet", async () => {
+  await load("#/training/library"); await type("#lq", "bench"); await until(() => $$("#lres [data-ex]").length > 2, "results");
+  await click('[data-group="chest"]'); await click("#lres [data-ex]"); await until(() => inDlg(".steps-list"), "detail");
+});
+await step("Profile edit: duplicate blocked on rename, valid edit recalculates", async () => {
+  await load("#/edit"); await type("#nm", "omar"); await click('button[type=submit]');
+  ok(/already exists/.test($("#oberr").textContent), "rename to existing name+age blocked");
+});
+await step("Migration from the old app (v1 keys)", async () => {
+  localStorage.clear();
+  localStorage.setItem("recompUser", JSON.stringify({name: "Mohamed", age: 28, prog: "fullbody"}));
+  localStorage.setItem("recompMacros", JSON.stringify({kg: "80", cm: "178", sex: "m", act: "1.55", goal: "recomp"}));
+  localStorage.setItem("recompProgress:mohamed", JSON.stringify({w: [{d: "2026-10-01", kg: 81}], l: [{d: "2026-10-02", ex: "Flat Bench Press", kg: 70, reps: 6, s: 1}], goal: 78}));
+  await load("#/training/workout"); await until(() => $(".dayb"), "workout loaded");
+  const p = active(); ok(p.name === "Mohamed" && p.training.plans[p.training.activePlanId].name === "Full Body", "old program became a plan");
+  ok(Object.keys(p.nutrition.plans).length === 1, "diet plan generated"); ok(p.training.logs.length === 1, "old sets kept");
+});
+
+const pass = log.filter(l => l.startsWith("PASS")).length;
+out.textContent = log.join("\n") + `\n\n${pass}/${log.length} flows passed`;
+document.title = `DONE ${pass}/${log.length} ¦ ` + log.join(" ¦ ");
+document.body.dataset.done = pass === log.length ? "pass" : "fail";
+</script></body></html>

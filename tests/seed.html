@@ -1,0 +1,24 @@
+<!doctype html><meta charset="utf-8"><title>seed</title>
+<script type="module">
+// Dev helper: fills this browser with a sample profile, then opens the screen in ?to=  (e.g. seed.html?to=%23/nutrition/today)
+import {createStore, uid} from "../js/core/store.js";
+import {ensureStarterPlans} from "../js/core/starter.js";
+const q = new URLSearchParams(location.search);
+localStorage.clear(); if (q.get("theme")) localStorage.setItem("theme", q.get("theme"));
+localStorage.setItem("installSnooze", Date.now() + 1e10);
+const s = createStore();
+const a = s.createProfile({name: "Mohamed", age: 28, sex: "male", heightCm: 178, weightKg: 80.6, activity: "moderate", goal: "lose", mealsPerDay: 4, preferred: ["chicken_breast_c", "egg", "rice_white_c", "oats_d", "banana", "olive_oil", "greek_0", "potato_boiled", "almonds"], mealTimes: ["08:00", "13:00", "16:30", "20:00"], targetWeightKg: 76});
+s.createProfile({name: "Sara", age: 25, sex: "female", heightCm: 165, weightKg: 60, activity: "light", goal: "maintain", mealsPerDay: 3});
+s.createProfile({name: "Omar", age: 34, sex: "male", heightCm: 182, weightKg: 92, activity: "very", goal: "gain", mealsPerDay: 5});
+s.setActive(a.id);
+ensureStarterPlans(s, a.id, uid, q.get("tpl") || "upperlower");
+const day = n => { const d = new Date(); d.setDate(d.getDate() - n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+s.updateProfile(a.id, p => {
+  p.weights = []; let kg = 84; for (let i = 35; i >= 0; i -= 3) { kg -= 0.28; p.weights.push({d: day(i), kg: Math.round(kg * 10) / 10}); }
+  const pl = p.training.plans[p.training.activePlanId], d0 = pl.days[0].exercises;
+  for (let k = 0; k < 5; k++) for (const [j, base] of [[0, 60], [1, 50], [2, 40]]) for (let st = 1; st <= d0[j].sets; st++) p.training.logs.push({d: day(35 - k * 7), ex: d0[j].exId, kg: base + 2.5 * k, reps: 8 - (st > 2 ? 1 : 0), s: st});
+  if (q.get("today")) { for (let st = 1; st <= d0[0].sets; st++) p.training.logs.push({d: day(0), ex: d0[0].exId, kg: 72.5, reps: 6, s: st}); p.training.logs.push({d: day(0), ex: d0[1].exId, kg: 60, reps: 8, s: 1}); }
+  const np = p.nutrition.plans[p.nutrition.activePlanId]; p.nutrition.eaten = {[day(0)]: {planId: np.id, meals: [np.meals[0].id]}};
+});
+location.replace("/" + (q.get("to") || "#/training/workout"));
+</script>

@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8"><title>frame</title>
+<!-- Dev helper for screenshots: shows seed.html (same query) in a 375px frame, then clicks the
+     selectors in ?act= (separated by "|"; "type:SEL=VALUE" fills an input) one after another. -->
+<body style="margin:0;background:#333"><iframe id="f" style="width:375px;border:0;display:block"></iframe>
+<script>
+const q=new URLSearchParams(location.search),f=document.getElementById("f");
+f.style.height=(q.get("h")||1400)+"px"; f.src="seed.html"+location.search;
+const acts=(q.get("act")||"").split("|").filter(Boolean);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+(async()=>{ while(!(f.contentDocument&&f.contentDocument.querySelector("#view")))await sleep(100); await sleep(400);
+  for(const a of acts){ const d=f.contentDocument;
+    if(a.startsWith("type:")){const [sel,val]=a.slice(5).split("=");const el=d.querySelector(sel);if(el){el.value=val;el.dispatchEvent(new Event("input",{bubbles:true}));}}
+    else if(a.startsWith("scroll:")){f.contentWindow.scrollTo(0,+a.slice(7));}
+    else{const el=[...d.querySelectorAll(a)].pop()||null; const first=d.querySelector(a); (first||el)&&(first||el).click();}
+    await sleep(350);} document.title="ready"; })();
+</script>
