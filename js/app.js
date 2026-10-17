@@ -7,6 +7,7 @@ import {renderProfiles, renderOnboarding, renderMe} from "./ui/profiles.js";
 import {renderTraining} from "./ui/training.js";
 import {renderNutrition} from "./ui/nutrition.js";
 import {renderPrefsPage} from "./ui/foodprefs.js";
+import {initOffline} from "./offline.js";
 
 const store = createStore();
 const root = $("#root");
@@ -94,7 +95,7 @@ function showInstall() {
   document.body.appendChild(el);
 }
 setTimeout(showInstall, 2500);
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+initOffline();
 
 // ---------- start ----------
 try { store.read(); route(); }

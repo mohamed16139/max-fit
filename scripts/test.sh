@@ -11,6 +11,7 @@ cleanup() { kill $SRV 2>/dev/null; pkill -f "user-data-dir=$PROFILE" 2>/dev/null
 trap cleanup EXIT
 i=0; until curl -sf "http://127.0.0.1:$PORT/tests/index.html" >/dev/null; do i=$((i+1)); [ $i -gt 50 ] && { echo "server did not start"; exit 1; }; sleep 0.2; done
 STATUS=0
+python3 scripts/build_sw.py --check || STATUS=1
 for page in index e2e; do
   "$CHROME" --headless=new --disable-gpu --user-data-dir="$PROFILE" --remote-debugging-port=$DBG --window-size=1000,900 --no-first-run --no-default-browser-check "http://127.0.0.1:$PORT/tests/$page.html" >/dev/null 2>&1 &
   T=""; n=0

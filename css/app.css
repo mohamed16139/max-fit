@@ -1,3 +1,12 @@
+/* Fonts: Barlow and Barlow Condensed (SIL Open Font License), bundled so the app looks the same offline. */
+@font-face{font-family:'Barlow';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/Barlow-400.woff2) format('woff2')}
+@font-face{font-family:'Barlow';font-style:normal;font-weight:500;font-display:swap;src:url(/fonts/Barlow-500.woff2) format('woff2')}
+@font-face{font-family:'Barlow';font-style:normal;font-weight:600;font-display:swap;src:url(/fonts/Barlow-600.woff2) format('woff2')}
+@font-face{font-family:'Barlow';font-style:normal;font-weight:700;font-display:swap;src:url(/fonts/Barlow-700.woff2) format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:500;font-display:swap;src:url(/fonts/BarlowCondensed-500.woff2) format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:600;font-display:swap;src:url(/fonts/BarlowCondensed-600.woff2) format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:700;font-display:swap;src:url(/fonts/BarlowCondensed-700.woff2) format('woff2')}
+
 /* Manga Fit design system. Dark by default (black + orange), light theme via [data-theme="light"]. */
 :root{
   --bg:#0A0A0A; --surface:#141414; --surface-2:#1C1C1C; --surface-3:#262626;

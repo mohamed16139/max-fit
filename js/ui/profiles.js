@@ -7,6 +7,7 @@ import {PROGRAM_TEMPLATES} from "../data/programs.js";
 
 import {prefGrid, prefsSummary, roleCounts} from "./foodprefs.js";
 import {PREF_ROLES} from "../data/foodgroups.js";
+import {onOfflineStatus, downloadPhotosNow, offlineSupported} from "../offline.js";
 
 const goalLabel = id => (GOALS.find(g => g.id === id) || {}).label || "";
 
@@ -211,12 +212,27 @@ export function renderMe(el, ctx) {
    <section class="card"><h3 style="margin-bottom:10px">Appearance</h3><div class="chips">
     <button type="button" class="chip" data-theme="dark" aria-pressed="${theme !== "light"}">${icon("moon")}Dark</button>
     <button type="button" class="chip" data-theme="light" aria-pressed="${theme === "light"}">${icon("sun")}Light</button></div></section>
+   <section class="card"><div class="card-h"><span class="cat-ico">${icon("circle-check")}</span><h3>Offline use</h3></div><div id="offl" class="muted" style="font-size:14px">Checking…</div></section>
    <section class="card"><h3 style="margin-bottom:6px">Data and sources</h3>
     <p class="muted" style="font-size:14px">Everything is saved on this device. Food values come from <a href="https://fdc.nal.usda.gov/" target="_blank" rel="noopener" style="color:var(--ink)">USDA FoodData Central</a> (SR Legacy). Exercises and photos come from <a href="https://github.com/yuhonas/free-exercise-db" target="_blank" rel="noopener" style="color:var(--ink)">free-exercise-db</a>. Calorie targets use the Mifflin–St Jeor formula and are estimates.</p>
     <button type="button" class="btn danger block" data-a="delete" style="margin-top:14px">${icon("trash-2", "sm")}Delete this profile</button></section>
   </div>`;
+  const offl = $("#offl", el);
+  if (!offlineSupported()) offl.textContent = "This browser can't save the app for offline use. Your data is still stored on this device.";
+  else {
+    const stop = onOfflineStatus(st => {
+      if (!document.body.contains(offl)) return stop();
+      const all = st.total && st.done >= st.total, pct = st.total ? Math.round(st.done / st.total * 100) : 0;
+      offl.innerHTML = `<div class="kv" style="margin-bottom:10px"><span>App and your data</span><b style="color:var(--ok)">${icon("check", "sm")} Available offline</b>
+        <span>Exercise photos</span><b class="num" style="color:${all ? "var(--ok)" : "var(--ink)"}">${st.total ? `${st.done} of ${st.total}` : "–"}</b></div>
+        ${all ? `<p class="faint" style="font-size:13px">Everything works without internet. Updates download next time you're online.</p>`
+          : `<div class="bar" style="margin-bottom:10px"><i style="width:${pct}%"></i></div><p class="faint" style="font-size:13px;margin-bottom:10px">${navigator.onLine ? "Photos download in the background (about 7.7 MB, once)." : "You're offline. Photos will finish downloading when you're back online."}</p>
+            <button type="button" class="btn ghost sm" data-a="photos" ${navigator.onLine ? "" : "disabled"}>${icon("image", "sm")}Download photos now</button>`}`;
+    });
+  }
   el.onclick = async e => {
     const a = e.target.closest("[data-a]")?.dataset.a;
+    if (a === "photos") { downloadPhotosNow(); return toast("Downloading exercise photos…"); }
     if (a === "edit") return ctx.go("#/edit");
     if (a === "prefs") return ctx.go("#/prefs");
     if (a === "add") return ctx.go("#/new");
