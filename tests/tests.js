@@ -5,6 +5,7 @@ import {createStore, DuplicateProfileError, KEY, normName} from "../js/core/stor
 import {FOODS} from "../js/data/foods.js";
 import {EXERCISES} from "../js/data/exercises.js";
 import {PROGRAM_TEMPLATES, LEGACY_EXERCISE_NAMES} from "../js/data/programs.js";
+import {FOOD_GROUPS, RAW_FORMS} from "../js/data/foodgroups.js";
 
 const results = [];
 const test = (name, fn) => { try { fn(); results.push([true, name]); } catch (e) { results.push([false, name, e.message]); } };
@@ -249,6 +250,26 @@ test("Allergy and diet beat a like; dislikes are not restrictions", () => {
 test("Generator explains when liked foods can't cover a food group", () => {
   const {notes} = N.generatePlan({targets: {kcal: 2400, p: 160, c: 280, f: 70}, mealsPerDay: 4, foods: FOODS, prefs: {foodPrefs: {rice_white_c: "like", olive_oil: "like"}}, uid});
   ok(notes.some(n => /protein foods/.test(n.text)), JSON.stringify(notes));
+});
+test("Every protein/carb/fat food is in exactly one general group", () => {
+  const seen = {};
+  for (const g of FOOD_GROUPS) for (const id of g.foods) { ok(F(id), "unknown " + id); ok(!seen[id], `${id} in ${seen[id]} and ${g.id}`); seen[id] = g.id;
+    ok(g.role === (F(id).role === "fruit" ? "carb" : F(id).role), `${id} role ${F(id).role} in ${g.role} group`); }
+  for (const f of FOODS) if (["protein", "carb", "fat", "fruit"].includes(f.role)) ok(seen[f.id], "not grouped: " + f.id);
+  ok(new Set(FOOD_GROUPS.map(g => g.id)).size === FOOD_GROUPS.length, "unique group ids");
+});
+test("Group preference sets every variant; mixed when fine-tuned", () => {
+  const eggs = FOOD_GROUPS.find(g => g.id === "eggs");
+  let m = N.setGroupPref({}, eggs, "like"); ok(eggs.foods.every(id => m[id] === "like")); eq(N.groupState(m, eggs), "like");
+  m = N.setGroupPref(m, eggs, "dislike"); eq(N.groupState(m, eggs), "dislike"); eq(Object.keys(m).length, eggs.foods.length, "no duplicates");
+  m = N.setFoodPref(m, "egg_white", "like"); eq(N.groupState(m, eggs), "mixed");
+  eq(N.groupState({rice_white_c: "like"}, FOOD_GROUPS.find(g => g.id === "rice")), "like", "one liked type = liked food");
+  m = N.setGroupPref(m, eggs, "neutral"); eq(Object.keys(m).length, 0);
+});
+test("Plans are built from ready-to-eat forms, not raw ones", () => {
+  const prefs = {foodPrefs: N.setGroupPref(N.setGroupPref(N.setGroupPref({}, FOOD_GROUPS.find(g => g.id === "chicken"), "like"), FOOD_GROUPS.find(g => g.id === "rice"), "like"), FOOD_GROUPS.find(g => g.id === "oliveoil"), "like")};
+  const ids = N.generatePlan({targets: {kcal: 2400, p: 160, c: 280, f: 70}, mealsPerDay: 4, foods: FOODS, prefs, uid}).meals.flatMap(m => m.items.map(i => i.foodId));
+  ok(!ids.some(id => RAW_FORMS.has(id)), "raw form used: " + ids.join()); ok(ids.some(id => id.startsWith("chicken_")) && ids.some(id => id.startsWith("rice_")), ids.join());
 });
 test("Replacements never suggest disliked foods", () => {
   const r = N.replacements(F("chicken_breast_c"), 150, "g", FOODS, {foodPrefs: {turkey_breast_c: "dislike", tuna_can: "dislike", cod_c: "dislike"}});

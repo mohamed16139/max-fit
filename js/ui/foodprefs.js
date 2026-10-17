@@ -1,148 +1,101 @@
-// Food Preferences: one searchable list where every food has exactly one state — like, neutral or dislike.
-// Used in onboarding (on a draft) and on its own page from Profile (saved immediately).
+// Food Preferences, by category: Protein → Carbs → Fats. Each tile is a general food ("Eggs", "Rice");
+// tap it to like it, tap its thumbs-down to dislike it. The exact variant is picked later in a meal.
 import {$, $$, esc, icon, ibtn, toast, confirmDialog} from "./dom.js";
 import {FOODS} from "../data/foods.js";
-import {foodPref, setFoodPref, restriction, likedIds, dislikedIds, generatePlan, planTargets} from "../core/nutrition.js";
+import {PREF_ROLES} from "../data/foodgroups.js";
+import {prefGroups, groupState, setGroupPref, restriction, likedIds, dislikedIds, generatePlan, planTargets} from "../core/nutrition.js";
 
-// Display categories (meat and fish are split using the food's flags).
-export const PREF_CATS = [
-  {id: "meat", label: "Meat & poultry", icon: "beef"}, {id: "fish", label: "Fish & seafood", icon: "fish"},
-  {id: "dairy", label: "Eggs & dairy", icon: "egg"}, {id: "grains", label: "Grains & carbs", icon: "wheat"},
-  {id: "fruit", label: "Fruits", icon: "apple"}, {id: "veg", label: "Vegetables", icon: "carrot"},
-  {id: "legumes", label: "Legumes", icon: "leaf"}, {id: "nuts", label: "Nuts & seeds", icon: "nut"},
-  {id: "fats", label: "Oils & fats", icon: "droplet"}, {id: "snacks", label: "Snacks", icon: "cookie"},
-  {id: "drinks", label: "Beverages", icon: "milk"}, {id: "custom", label: "My foods", icon: "star"},
-];
-export function prefCat(f) {
-  if (f.custom) return "custom";
-  if (f.cat === "meat") return (f.flags || []).some(x => x === "fish" || x === "shellfish") ? "fish" : "meat";
-  return f.cat;
+const foodById = (id, custom) => FOODS.find(f => f.id === id) || custom.find(f => f.id === id);
+/** "allergy" / "diet" when every food in the group is ruled out, else null. */
+function groupRestriction(g, rules, custom) {
+  const rs = g.foods.map(id => { const f = foodById(id, custom); return f ? restriction(f, rules) : null; });
+  return rs.every(Boolean) ? (rs.includes("allergy") ? "allergy" : "diet") : null;
 }
-const catOf = f => PREF_CATS.find(c => c.id === prefCat(f)) || PREF_CATS[0];
-const STATE_UI = {
-  like: {icon: "thumbs-up", label: "Like"},
-  neutral: {icon: "minus", label: "No preference"},
-  dislike: {icon: "thumbs-down", label: "Dislike"},
-};
+export function roleCounts(map, role, custom = []) {
+  const gs = prefGroups(custom).filter(g => g.role === role);
+  return {liked: gs.filter(g => groupState(map, g) === "like").length, disliked: gs.filter(g => groupState(map, g) === "dislike").length};
+}
 
 /**
- * Mount the editor.
- *  getMap()            current {foodId: "like"|"dislike"} map
- *  setState(id, s)     persist one change; return the new map, or null if saving failed
- *  resetAll()          clear every preference; return the new map or null
- *  restoreAll(map)     put a previous map back (used by Undo); return the new map or null
- *  getRules()          {diet, allergies} — hard restrictions, shown on the rows
- *  foods               foods to list (database + the profile's custom foods)
- *  compact             limit the list height (for use inside onboarding)
- * Returns {refresh()} to redraw rows after the rules change.
+ * Tile grid for one category.
+ *  getMap() / setMap(newMap) -> saved map or null on failure / getRules() -> {diet, allergies}
  */
-export function foodPrefsEditor(el, {getMap, setState, resetAll, restoreAll, getRules, foods = FOODS, compact = false, onChange = () => {}}) {
-  const st = {q: "", filter: "all", cat: ""};
-  const prof = () => ({foodPrefs: getMap(), ...getRules()});
-  el.innerHTML = `<div class="prefs">
-    <div class="row wrap-ok" style="gap:8px;margin-bottom:12px" id="psum"></div>
-    <div class="input-wrap">${icon("search")}<input class="input" type="search" id="pq" placeholder="Search foods" autocomplete="off" aria-label="Search foods" aria-controls="plist"></div>
-    <div class="chips" role="group" aria-label="Show" style="margin-top:10px">
-      ${[["all", "All foods", "list"], ["like", "Liked", "thumbs-up"], ["dislike", "Disliked", "thumbs-down"]].map(([id, l, ic]) => `<button type="button" class="chip" data-filter="${id}" aria-pressed="${id === "all"}">${icon(ic)}${l}<span class="num" data-count="${id}"></span></button>`).join("")}</div>
-    <div class="chips scroll" role="group" aria-label="Category" style="margin-top:8px">
-      <button type="button" class="chip" data-cat="" aria-pressed="true">All categories</button>
-      ${PREF_CATS.filter(c => c.id !== "custom" || foods.some(f => f.custom)).map(c => `<button type="button" class="chip" data-cat="${c.id}" aria-pressed="false">${icon(c.icon)}${c.label}</button>`).join("")}</div>
-    <div class="faint" id="pcount" style="font-size:13px;margin:12px 0 4px" aria-live="polite"></div>
-    <div class="pref-list${compact ? " compact" : ""}" id="plist"></div></div>`;
-
-  const summary = () => {
-    const m = getMap(), nL = Object.values(m).filter(v => v === "like").length, nD = Object.values(m).filter(v => v === "dislike").length;
-    $("#psum", el).innerHTML = `<span class="badge ok">${icon("thumbs-up", "sm")}${nL} liked</span><span class="badge" style="background:var(--danger-soft);color:var(--danger)">${icon("thumbs-down", "sm")}${nD} disliked</span><span class="spacer"></span>
-      ${nL + nD ? `<button type="button" class="btn ghost sm" data-reset>${icon("rotate-ccw", "sm")}Reset all</button>` : `<span class="faint" style="font-size:13px">Everything is neutral until you choose</span>`}`;
-    $('[data-count="like"]', el).textContent = nL ? ` ${nL}` : "";
-    $('[data-count="dislike"]', el).textContent = nD ? ` ${nD}` : "";
+export function prefGrid(el, {role, getMap, setMap, getRules, custom = [], search = false, onChange = () => {}}) {
+  let q = "";
+  const groups = prefGroups(custom).filter(g => g.role === role);
+  const tile = g => {
+    const s = groupState(getMap(), g), r = groupRestriction(g, getRules(), custom);
+    const liked = s === "like", disliked = s === "dislike";
+    return `<div class="ptile${liked ? " liked" : ""}${disliked ? " disliked" : ""}${r ? " blocked" : ""}" data-g="${esc(g.id)}">
+      <button type="button" class="ptile-main" data-a="like" aria-pressed="${liked}" ${r ? "disabled" : ""} aria-label="${esc(g.name)}: ${r ? (r === "allergy" ? "not available, allergy" : "not in your diet") : liked ? "liked, tap to clear" : "tap to like"}">
+        <span class="ptile-ico">${icon(liked ? "thumbs-up" : g.icon)}</span><span class="ptile-name">${esc(g.name)}</span>
+        <span class="ptile-sub">${r ? (r === "allergy" ? "Allergy" : "Not in your diet") : liked ? "Liked" : disliked ? "Disliked" : s === "mixed" ? "Some types disliked" : ""}</span></button>
+      <button type="button" class="ptile-x" data-a="dislike" aria-pressed="${disliked}" aria-label="${disliked ? "Clear dislike for " : "Dislike "}${esc(g.name)}" data-tip="${disliked ? "Clear dislike" : "Dislike"}">${icon("thumbs-down")}</button></div>`;
   };
-  const matches = f => {
-    const s = foodPref(prof(), f.id);
-    if (st.filter !== "all" && s !== st.filter) return false;
-    if (st.cat && prefCat(f) !== st.cat) return false;
-    const words = st.q.toLowerCase().split(/\s+/).filter(Boolean);
-    return words.every(w => (f.name + " " + catOf(f).label).toLowerCase().includes(w));
+  const draw = () => {
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const list = groups.filter(g => words.every(w => g.name.toLowerCase().includes(w)));
+    const sections = [...new Set(list.map(g => g.section))];
+    $(".pgrid-body", el).innerHTML = list.length ? sections.map(sec => `<h4 class="psec">${esc(sec)}</h4><div class="pgrid">${list.filter(g => g.section === sec).map(tile).join("")}</div>`).join("")
+      : `<div class="empty">${icon("search")}<h3>No foods found</h3><p>Try another word.</p></div>`;
   };
-  const rowHTML = f => {
-    const p = prof(), s = foodPref(p, f.id), r = restriction(f, p);
-    const tag = r ? `<span class="badge warn">${icon("ban", "sm")}${r === "allergy" ? "Allergy" : "Not in your diet"}</span>` : "";
-    return `<div class="pref-row" data-id="${esc(f.id)}" data-state="${s}">
-      <span class="cat-ico" aria-hidden="true">${icon(catOf(f).icon)}</span>
-      <div class="main"><div class="title">${esc(f.name)}</div><div class="sub">${esc(catOf(f).label)} ${tag}</div></div>
-      <div class="tri" role="radiogroup" aria-label="Preference for ${esc(f.name)}">
-        ${["like", "neutral", "dislike"].map(k => {
-          const blocked = k === "like" && r;
-          return `<button type="button" role="radio" data-s="${k}" aria-checked="${s === k}" tabindex="${s === k ? 0 : -1}" aria-label="${STATE_UI[k].label}${blocked ? " (not available: " + (r === "allergy" ? "allergy" : "diet") + ")" : ""}" data-tip="${blocked ? "Conflicts with your " + (r === "allergy" ? "allergies" : "diet") : STATE_UI[k].label}" ${blocked ? "disabled" : ""}>${icon(STATE_UI[k].icon)}</button>`;
-        }).join("")}</div></div>`;
+  el.innerHTML = `${search ? `<div class="input-wrap" style="margin-bottom:6px">${icon("search")}<input class="input" type="search" placeholder="Search ${esc(PREF_ROLES.find(r => r.id === role).label.toLowerCase())}" aria-label="Search foods"></div>` : ""}<div class="pgrid-body"></div>`;
+  if (search) $("input", el).oninput = e => { q = e.target.value; draw(); };
+  el.onclick = e => {
+    const b = e.target.closest("[data-a]"), t = b && b.closest("[data-g]"); if (!t || b.disabled) return;
+    const g = groups.find(x => x.id === t.dataset.g), s = groupState(getMap(), g);
+    const next = b.dataset.a === "like" ? (s === "like" ? "neutral" : "like") : (s === "dislike" ? "neutral" : "dislike");
+    if (!setMap(setGroupPref(getMap(), g, next))) return;
+    const tmp = document.createElement("div"); tmp.innerHTML = tile(g); const nu = tmp.firstElementChild;
+    t.replaceWith(nu); nu.classList.add("flash"); nu.querySelector(`[data-a="${b.dataset.a}"]`).focus();
+    onChange(getMap());
   };
-  const list = () => {
-    const res = foods.filter(matches);
-    $("#pcount", el).textContent = `${res.length} food${res.length === 1 ? "" : "s"}${st.filter !== "all" ? (st.filter === "like" ? " liked" : " disliked") : ""}`;
-    $("#plist", el).innerHTML = res.length ? res.map(rowHTML).join("") : `<div class="empty">${icon(st.filter === "like" ? "thumbs-up" : st.filter === "dislike" ? "thumbs-down" : "search")}
-      <h3>${st.filter === "like" ? "No liked foods yet" : st.filter === "dislike" ? "No disliked foods" : "No foods found"}</h3>
-      <p>${st.filter !== "all" ? "Switch to All foods and tap the thumbs on anything you enjoy or avoid." : "Try another word or category."}</p></div>`;
-    summary();
-  };
-  const updateRow = id => {
-    const row = $(`.pref-row[data-id="${CSS.escape(id)}"]`, el), f = foods.find(x => x.id === id); if (!row || !f) return;
-    const tmp = document.createElement("div"); tmp.innerHTML = rowHTML(f);
-    const nu = tmp.firstElementChild; row.replaceWith(nu); nu.classList.add("flash");
-    return nu;
-  };
-  const choose = (id, s) => {
-    if (foodPref(prof(), id) === s) return;
-    const res = setState(id, s);
-    if (!res) return;                       // save failed: the row stays as it was
-    const row = updateRow(id); summary(); onChange(getMap());
-    const btn = row && $(`[data-s="${s}"]`, row); if (btn && document.activeElement && el.contains(document.activeElement)) btn.focus();
-  };
-
-  $("#pq", el).oninput = e => { st.q = e.target.value; list(); };
-  el.addEventListener("click", e => {
-    const b = e.target.closest(".tri [data-s]"); if (b && !b.disabled) return choose(b.closest(".pref-row").dataset.id, b.dataset.s);
-    const fl = e.target.closest("[data-filter]"); if (fl) { st.filter = fl.dataset.filter; $$("[data-filter]", el).forEach(x => x.setAttribute("aria-pressed", x === fl)); return list(); }
-    const c = e.target.closest("[data-cat]"); if (c) { st.cat = c.dataset.cat; $$("[data-cat]", el).forEach(x => x.setAttribute("aria-pressed", x === c)); return list(); }
-    if (e.target.closest("[data-reset]")) {
-      const before = {...getMap()};
-      if (!resetAll()) return;
-      list(); onChange(getMap());
-      toast("All food preferences reset", {action: {label: "Undo", run: () => { if (restoreAll(before)) { list(); onChange(getMap()); } }}});
-    }
-  });
-  // Arrow keys move within a row's three options, like a radio group.
-  el.addEventListener("keydown", e => {
-    const b = e.target.closest(".tri [data-s]"); if (!b || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
-    e.preventDefault();
-    const opts = $$("[data-s]:not([disabled])", b.parentElement), i = opts.indexOf(b), nx = opts[(i + (e.key === "ArrowRight" ? 1 : -1) + opts.length) % opts.length];
-    choose(b.closest(".pref-row").dataset.id, nx.dataset.s); const row = $(`.pref-row[data-id="${CSS.escape(b.closest(".pref-row").dataset.id)}"]`, el); $(`[data-s="${nx.dataset.s}"]`, row)?.focus();
-  });
-  list();
-  return {refresh: list};
+  draw();
+  return {refresh: draw};
 }
 
 // ---------- the Food Preferences page (from Profile) ----------
-export function renderPrefsPage(el, ctx) {
-  const pid = ctx.pid;
-  let changed = false;
+export function renderPrefsPage(el, ctx, startRole = "protein") {
+  let role = PREF_ROLES.some(r => r.id === startRole) ? startRole : "protein", changed = false;
+  const custom = () => Object.values(ctx.profile().nutrition.customFoods || {});
+  const getMap = () => (ctx.profile() || {}).foodPrefs || {};
+  const setMap = m => { const r = ctx.save(d => { d.foodPrefs = m; }); return r ? r.foodPrefs : null; };
+  const getRules = () => { const p = ctx.profile(); return {diet: p.diet, allergies: p.allergies}; };
   el.innerHTML = `<header class="topbar"><div class="wrap">${ibtn("chevron-left", "Back to profile", 'id="pback"')}<h1>Food Preferences</h1></div></header>
    <div class="wrap" style="margin-top:14px">
-    <p class="muted" style="margin-bottom:14px">Tell us what you enjoy eating so we can personalize your meal plans. Allergies and diet are set separately in your profile and always come first.</p>
-    <section class="card" id="ped"></section>
+    <p class="muted">Tell us what you enjoy eating so we can personalize your meal plans. Pick general foods here; you can switch to a specific type (brown rice, boiled eggs…) inside any meal.</p>
+    <div class="row wrap-ok" style="gap:8px;margin:12px 0" id="psum"></div>
+    <div class="seg" role="tablist" id="ptabs"></div>
+    <section class="card" id="pgrid"></section>
+    <div class="row" style="margin-top:12px;gap:10px" id="pnav"></div>
     <section class="card hidden" id="papply" style="margin-top:12px;border-color:var(--brand-line)"></section>
    </div>`;
   $("#pback", el).onclick = () => ctx.go("#/me");
-  const save = fn => { const r = ctx.save(d => { d.foodPrefs = fn(d.foodPrefs || {}); }); return r ? r.foodPrefs : null; };
-  foodPrefsEditor($("#ped", el), {
-    getMap: () => (ctx.profile() || {}).foodPrefs || {},
-    setState: (id, s) => save(m => setFoodPref(m, id, s)),
-    resetAll: () => save(() => ({})),
-    restoreAll: map => save(() => map),
-    getRules: () => { const p = ctx.profile(); return {diet: p.diet, allergies: p.allergies}; },
-    foods: ctx.foods(),
-    onChange: () => { changed = true; showApply(); },
-  });
-  function showApply() {
+  const summary = () => {
+    const m = getMap(), L = likedIds({foodPrefs: m}).length, D = dislikedIds({foodPrefs: m}).length;
+    $("#psum", el).innerHTML = PREF_ROLES.map(r => { const c = roleCounts(m, r.id, custom()); return `<span class="badge">${r.label}: <b style="color:var(--ok)">${c.liked}</b> ${icon("thumbs-up", "sm")} <b style="color:var(--danger)">${c.disliked}</b> ${icon("thumbs-down", "sm")}</span>`; }).join("")
+      + `<span class="spacer"></span>${L + D ? `<button type="button" class="btn ghost sm" data-reset>${icon("rotate-ccw", "sm")}Reset all</button>` : ""}`;
+    $("#ptabs", el).innerHTML = PREF_ROLES.map(r => { const c = roleCounts(m, r.id, custom()); return `<button role="tab" aria-selected="${r.id === role}" data-role="${r.id}">${icon(r.icon, "sm")}${r.label}${c.liked ? ` <span class="badge ok" style="padding:0 6px">${c.liked}</span>` : ""}</button>`; }).join("");
+  };
+  const show = () => {
+    const i = PREF_ROLES.findIndex(r => r.id === role), R = PREF_ROLES[i];
+    prefGrid($("#pgrid", el), {role, getMap, setMap, getRules, custom: custom(), search: true, onChange: () => { changed = true; summary(); apply(); }});
+    $("#pgrid", el).insertAdjacentHTML("afterbegin", `<p class="faint" style="font-size:13px;margin-bottom:10px">${esc(R.hint)} Tap to like · ${icon("thumbs-down", "sm")} to dislike.</p>`);
+    $("#pnav", el).innerHTML = `${i ? `<button type="button" class="btn ghost" data-go="${PREF_ROLES[i - 1].id}">${icon("chevron-left", "sm")}${PREF_ROLES[i - 1].label}</button>` : ""}<span class="spacer"></span>
+      ${i < PREF_ROLES.length - 1 ? `<button type="button" class="btn primary" data-go="${PREF_ROLES[i + 1].id}">Next: ${PREF_ROLES[i + 1].label}${icon("chevron-right", "sm")}</button>` : `<button type="button" class="btn primary" data-done>${icon("check", "sm")}Done</button>`}`;
+    summary();
+  };
+  el.onclick = async e => {
+    const t = e.target.closest("[data-role]"); if (t) { role = t.dataset.role; return show(); }
+    const g = e.target.closest("[data-go]"); if (g) { role = g.dataset.go; show(); return window.scrollTo({top: 0, behavior: "smooth"}); }
+    if (e.target.closest("[data-done]")) return ctx.go("#/me");
+    if (e.target.closest("[data-reset]")) {
+      const before = {...getMap()}; if (!setMap({})) return;
+      changed = true; show(); apply();
+      toast("All food preferences reset", {action: {label: "Undo", run: () => { if (setMap(before)) { show(); } }}});
+    }
+  };
+  function apply() {
     const p = ctx.profile(), plan = p.nutrition.plans[p.nutrition.activePlanId], box = $("#papply", el);
     if (!changed || !plan) return box.classList.add("hidden");
     box.classList.remove("hidden");
@@ -156,8 +109,11 @@ export function renderPrefsPage(el, ctx) {
       if (ctx.save(d => { const pl = d.nutrition.plans[plan.id]; if (!pl) return false; pl.meals = meals; pl.notes = notes; pl.updatedAt = new Date().toISOString(); }, "New meals generated")) ctx.go("#/nutrition/today");
     };
   }
+  show();
 }
+/** For the Profile page: names of liked general foods. */
 export function prefsSummary(p) {
-  const L = likedIds(p), D = dislikedIds(p);
-  return {liked: L.length, disliked: D.length, likedNames: L.map(id => (FOODS.find(f => f.id === id) || (p.nutrition.customFoods || {})[id] || {}).name).filter(Boolean)};
+  const custom = Object.values(p.nutrition.customFoods || {}), gs = prefGroups(custom), m = p.foodPrefs || {};
+  const liked = gs.filter(g => groupState(m, g) === "like"), disliked = gs.filter(g => groupState(m, g) === "dislike");
+  return {liked: liked.length, disliked: disliked.length, likedNames: liked.map(g => g.name)};
 }

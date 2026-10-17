@@ -1,4 +1,5 @@
 // Nutrition calculations. Pure functions only: no DOM, no storage.
+import {FOOD_GROUPS, RAW_FORMS} from "../data/foodgroups.js";
 // Every number shown in the app (food rows, meal totals, day totals, generator, replacements)
 // goes through nutrientsFor(), so they always agree.
 
@@ -169,6 +170,26 @@ export function prefsFromLists(liked = [], disliked = [], base = {}) {
 }
 export const likedIds = p => Object.keys(p.foodPrefs || {}).filter(id => p.foodPrefs[id] === "like");
 export const dislikedIds = p => Object.keys(p.foodPrefs || {}).filter(id => p.foodPrefs[id] === "dislike");
+/**
+ * General-food groups (data/foodgroups.js) plus one group per custom food. A group's state is derived
+ * from its foods: liked if any type is liked (and none disliked), disliked likewise, "mixed" if both.
+ */
+export function prefGroups(customFoods = []) {
+  const extra = customFoods.filter(f => ["protein", "carb", "fat", "fruit"].includes(f.role))
+    .map(f => ({id: "custom:" + f.id, name: f.name, role: f.role === "fruit" ? "carb" : f.role, section: "My foods", icon: "star", foods: [f.id]}));
+  return FOOD_GROUPS.concat(extra);
+}
+export function groupState(map, group) {
+  const states = new Set(group.foods.map(id => foodPref({foodPrefs: map}, id)));
+  const L = states.has("like"), D = states.has("dislike");
+  return L && D ? "mixed" : L ? "like" : D ? "dislike" : "neutral";
+}
+/** Set every food in a group to one state (neutral removes them). */
+export function setGroupPref(map, group, state) {
+  let m = {...(map || {})};
+  for (const id of group.foods) m = setFoodPref(m, id, state);
+  return m;
+}
 /** Can the app suggest this food? Allowed by diet/allergies and not disliked. Neutral foods are fine. */
 export function suggestible(food, prefs = {}) { return allowed(food, prefs) && foodPref(prefs, food.id) !== "dislike"; }
 
@@ -232,7 +253,7 @@ export function generatePlan({targets: T, mealsPerDay, foods, prefs, uid}) {
 }
 function buildMeals({T, mealsPerDay, foods, prefs, uid, ok, liked}) {
   const poolFor = (role, tag) => {
-    const pool = ok.filter(f => f.role === role && f.meals.includes(tag) && f.unit === "g");
+    const pool = ok.filter(f => f.role === role && f.meals.includes(tag) && f.unit === "g" && !RAW_FORMS.has(f.id));
     const fav = pool.filter(f => liked.has(f.id)), def = pool.filter(f => !liked.has(f.id) && DEFAULT_PICKS.includes(f.id)), rest = pool.filter(f => !liked.has(f.id) && !DEFAULT_PICKS.includes(f.id));
     return {first: fav.length ? fav : def.length ? def : rest, backup: (fav.length ? def : []).concat(rest), liked: fav.length > 0};
   };

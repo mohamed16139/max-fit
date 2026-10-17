@@ -36,11 +36,14 @@ async function onboard(name, age, {sex = "male", h = 178, w = 80, tpl = "upperlo
   await click('[data-k="activity"][data-v="moderate"]'); await click('button[type=submit]');
   await click('[data-k="goal"][data-v="lose"]'); await click('button[type=submit]');
   await click('[data-mpd="4"]'); await click('button[type=submit]');
-  await click('[data-multi="allergies"][data-v="treenut"]');
-  await click('.pref-row[data-id="chicken_breast_c"] [data-s="like"]'); await click('.pref-row[data-id="rice_white_c"] [data-s="like"]');
-  await click('.pref-row[data-id="egg"] [data-s="like"]'); await click('.pref-row[data-id="egg"] [data-s="dislike"]');   // like → dislike replaces
-  ok($('.pref-row[data-id="almonds"] [data-s="like"]').disabled, "can't like a food you're allergic to");
-  await click('button[type=submit]');
+  await click('[data-multi="allergies"][data-v="treenut"]'); await click('button[type=submit]');
+  // Protein → Carbs → Fats, one category per screen, general foods only
+  ok(!$('[data-g="eggs"]').textContent.match(/boiled|white/i) && !$$('.ptile').some(t => /raw|roasted|cooked/i.test(t.textContent)), "general names only");
+  await click('[data-g="chicken"] [data-a="like"]'); await click('[data-g="eggs"] [data-a="like"]'); await click('[data-g="eggs"] [data-a="dislike"]');   // like → dislike replaces
+  ok(/Next: Carbs/.test($('button[type=submit]').textContent), "next goes to carbs"); await click('button[type=submit]');
+  await click('[data-g="rice"] [data-a="like"]'); await click('button[type=submit]');
+  ok($('[data-g="almonds"] [data-a="like"]').disabled, "can't like a food you're allergic to");
+  await click('[data-g="oliveoil"] [data-a="like"]'); await click('button[type=submit]');
   await click(`[data-tpl="${tpl}"]`); await click('button[type=submit]');
   await until(() => location && fr.contentWindow.location.hash.startsWith("#/nutrition"), "landed on nutrition");
   return "";
@@ -53,7 +56,7 @@ await step("A1 new user: onboarding creates profile, diet plan and workout plan"
   const p = active(); ok(p.name === "Ahmed" && p.age === 30 && p.heightCm === 178, "profile fields");
   ok(Object.keys(p.nutrition.plans).length === 1 && p.nutrition.plans[p.nutrition.activePlanId].meals.length === 4, "diet plan with 4 meals");
   ok(p.training.plans[p.training.activePlanId].name === "Upper / Lower", "workout plan from template");
-  ok(p.allergies.includes("treenut") && p.foodPrefs.chicken_breast_c === "like" && p.foodPrefs.egg === "dislike", "preferences saved");
+  ok(p.allergies.includes("treenut") && p.foodPrefs.chicken_breast_c === "like" && p.foodPrefs.chicken_breast_r === "like" && p.foodPrefs.egg === "dislike" && p.foodPrefs.egg_boiled === "dislike", "group preferences saved on every variant");
   ok(!Object.values(p.nutrition.plans)[0].meals.some(m => m.items.some(i => i.foodId === "egg")), "disliked egg not in generated plan");
   const ids = Object.values(p.nutrition.plans)[0].meals.flatMap(m => m.items.map(i => i.foodId));
   ok(!ids.some(id => ["almonds", "walnuts", "cashews", "pistachios", "almond_butter", "almond_milk", "granola"].includes(id)), "no tree nuts generated");
@@ -181,14 +184,14 @@ await step("Profile edit: duplicate blocked on rename, valid edit recalculates",
   ok(/already exists/.test($("#oberr").textContent), "rename to existing name+age blocked");
 });
 await step("Food Preferences page: search, filter, three states, reset + undo, isolated per profile", async () => {
-  await load("#/prefs"); await until(() => $(".pref-row"), "rows");
-  await type("#pq", "salm"); ok($$(".pref-row").every(r => /salm/i.test(r.textContent)), "search filters");
-  await click('.pref-row[data-id="salmon_c"] [data-s="like"]'); ok(active().foodPrefs.salmon_c === "like", "saved immediately");
-  await click('.pref-row[data-id="salmon_c"] [data-s="dislike"]'); ok(active().foodPrefs.salmon_c === "dislike", "replaced");
-  ok($('.pref-row[data-id="salmon_c"] [data-s="like"]').getAttribute("aria-checked") === "false", "UI shows one state");
-  await click('.pref-row[data-id="salmon_c"] [data-s="neutral"]'); ok(!("salmon_c" in active().foodPrefs), "neutral clears");
-  await type("#pq", ""); await click('[data-filter="like"]'); ok($$(".pref-row").every(r => r.dataset.state === "like") && $$(".pref-row").length >= 2, "liked filter");
-  await click('[data-cat="grains"]'); ok($$(".pref-row").every(r => r.dataset.state === "like"), "filter + category combine");
+  await load("#/prefs"); await until(() => $(".ptile"), "tiles");
+  ok($$(".ptile").every(t => t.closest("#pgrid")) && $('[data-role="protein"][aria-selected="true"]'), "starts on protein");
+  await type("#pgrid input", "salm"); ok($$(".ptile").length === 1, "search filters");
+  await click('[data-g="salmon"] [data-a="like"]'); ok(active().foodPrefs.salmon_c === "like" && active().foodPrefs.salmon_r === "like", "saved immediately on all variants");
+  await click('[data-g="salmon"] [data-a="dislike"]'); ok(active().foodPrefs.salmon_c === "dislike", "replaced");
+  ok($('[data-g="salmon"] [data-a="like"]').getAttribute("aria-pressed") === "false", "UI shows one state");
+  await click('[data-g="salmon"] [data-a="dislike"]'); ok(!("salmon_c" in active().foodPrefs), "tap again clears");
+  await click('[data-go="carb"]'); ok($('[data-role="carb"][aria-selected="true"]') && $('[data-g="rice"]'), "next category");
   const before = JSON.stringify(active().foodPrefs);
   await click("[data-reset]"); ok(Object.keys(active().foodPrefs).length === 0, "reset");
   D().querySelector("#toast button").click(); await sleep(80); ok(JSON.stringify(active().foodPrefs) === before, "undo restores");
