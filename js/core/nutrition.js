@@ -133,16 +133,44 @@ export const ALLERGENS = [
   {id: "fish", label: "Fish"}, {id: "shellfish", label: "Shellfish"}, {id: "peanut", label: "Peanuts"},
   {id: "treenut", label: "Tree nuts"}, {id: "soy", label: "Soy"}, {id: "sesame", label: "Sesame"},
 ];
-/** Whether the profile can eat this food: diet, allergies and dislikes. */
-export function allowed(food, prefs = {}) {
+/** Hard rules only — diet and allergies. A food that fails this is never suggested or added. */
+export function allowed(food, prefs = {}) { return !restriction(food, prefs); }
+/** Why a food is off-limits: "diet", "allergy", or null. Preferences are not restrictions. */
+export function restriction(food, prefs = {}) {
   const diet = DIETS.find(d => d.id === (prefs.diet || "none")) || DIETS[0];
   const flags = food.flags || [];
-  if ((diet.excludes || []).some(x => flags.includes(x))) return false;
-  if ((diet.alsoIds || []).includes(food.id)) return false;
-  if ((prefs.allergies || []).some(x => flags.includes(x))) return false;
-  if ((prefs.dislikes || []).includes(food.id)) return false;
-  return true;
+  if ((prefs.allergies || []).some(x => flags.includes(x))) return "allergy";
+  if ((diet.excludes || []).some(x => flags.includes(x)) || (diet.alsoIds || []).includes(food.id)) return "diet";
+  return null;
 }
+
+// ---------- food preferences ----------
+// One map per profile, food id -> "like" | "dislike". A food that isn't in the map is neutral.
+// Because it's a map keyed by the stable food id, a food can only ever have one state.
+export const PREF_STATES = ["like", "neutral", "dislike"];
+export function foodPref(profile, id) { const v = (profile.foodPrefs || {})[id]; return v === "like" || v === "dislike" ? v : "neutral"; }
+/** Returns a new map with one food set to a state; "neutral" removes the entry. */
+export function setFoodPref(map, id, state) {
+  const out = {...(map || {})};
+  if (state === "like" || state === "dislike") out[id] = state; else delete out[id];
+  return out;
+}
+export function normalizeFoodPrefs(map) {
+  const out = {};
+  for (const [id, v] of Object.entries(map || {})) if (id && (v === "like" || v === "dislike")) out[id] = v;
+  return out;
+}
+/** Older data kept two lists. A food in both becomes "dislike" so it is never served against someone's wishes. */
+export function prefsFromLists(liked = [], disliked = [], base = {}) {
+  let m = normalizeFoodPrefs(base);
+  for (const id of liked) if (!m[id]) m = setFoodPref(m, id, "like");
+  for (const id of disliked) m = setFoodPref(m, id, "dislike");
+  return m;
+}
+export const likedIds = p => Object.keys(p.foodPrefs || {}).filter(id => p.foodPrefs[id] === "like");
+export const dislikedIds = p => Object.keys(p.foodPrefs || {}).filter(id => p.foodPrefs[id] === "dislike");
+/** Can the app suggest this food? Allowed by diet/allergies and not disliked. Neutral foods are fine. */
+export function suggestible(food, prefs = {}) { return allowed(food, prefs) && foodPref(prefs, food.id) !== "dislike"; }
 
 // ---------- meal layout ----------
 // share = portion of the day's targets; tag = which foods suit the meal (b breakfast, m main, s snack).
@@ -191,9 +219,18 @@ export function fitFoods(foods, t) {
  * Meals are filled in order, each taking its share of what's left, so an overshoot early is
  * made up later. Lunch and dinner include vegetables (counted). Portions are rounded to 5 g / 5 ml.
  */
-export function generateMeals({targets: T, mealsPerDay, foods, prefs, uid}) {
-  const ok = foods.filter(f => allowed(f, prefs));
-  const liked = new Set(prefs.preferred || []);
+export function generateMeals(args) { return generatePlan(args).meals; }
+/**
+ * Build meals plus notes explaining any compromise: liked foods left out by an allergy or diet,
+ * food groups with no liked option, or targets the chosen foods couldn't meet.
+ */
+export function generatePlan({targets: T, mealsPerDay, foods, prefs, uid}) {
+  const ok = foods.filter(f => suggestible(f, prefs));
+  const liked = new Set(likedIds(prefs));
+  const meals = buildMeals({T, mealsPerDay, foods, prefs, uid, ok, liked});
+  return {meals, notes: planNotes({T, meals, foods, prefs, ok, liked})};
+}
+function buildMeals({T, mealsPerDay, foods, prefs, uid, ok, liked}) {
   const poolFor = (role, tag) => {
     const pool = ok.filter(f => f.role === role && f.meals.includes(tag) && f.unit === "g");
     const fav = pool.filter(f => liked.has(f.id)), def = pool.filter(f => !liked.has(f.id) && DEFAULT_PICKS.includes(f.id)), rest = pool.filter(f => !liked.has(f.id) && !DEFAULT_PICKS.includes(f.id));
@@ -247,6 +284,27 @@ export function generateMeals({targets: T, mealsPerDay, foods, prefs, uid}) {
     return {id: uid(), name, items: best.merged.map(it => ({id: uid(), ...it}))};
   });
 }
+const ROLE_WORD = {protein: "protein", carb: "carb", fat: "fat"};
+function planNotes({T, meals, foods, prefs, ok, liked}) {
+  const notes = [], byId = id => foods.find(f => f.id === id);
+  const blocked = [...liked].map(byId).filter(f => f && !allowed(f, prefs));
+  if (blocked.length) notes.push({kind: "info", text: `Left out because of your ${blocked.some(f => restriction(f, prefs) === "allergy") ? "allergies" : "diet"}: ${blocked.map(f => f.name).join(", ")}.`});
+  if (liked.size) for (const role of ["protein", "carb", "fat"]) {
+    const usable = ok.filter(f => liked.has(f.id) && (f.role === role || (role === "carb" && f.role === "fruit")) && f.unit === "g");
+    if (!usable.length) {
+      const used = [...new Set(meals.flatMap(m => m.items.map(i => byId(i.foodId))).filter(f => f && f.role === role).map(f => f.name))];
+      if (used.length) notes.push({kind: "info", text: `You haven't liked any ${ROLE_WORD[role]} foods that fit your diet, so we used ${used.slice(0, 3).join(", ")}. Like a few to make it yours.`});
+    }
+  }
+  const tot = sum(meals.flatMap(m => m.items.map(i => nutrientsFor(byId(i.foodId), i.qty, i.unit))));
+  const miss = [["p", "protein", "protein"], ["c", "carbs", "carb"], ["f", "fat", "fat"]].filter(([k]) => T[k] > 0 && Math.abs(tot[k] - T[k]) > Math.max(8, T[k] * 0.1));
+  for (const [k, word, role] of miss) {
+    const ideas = ok.filter(f => (f.role === role || (role === "carb" && f.role === "fruit")) && !liked.has(f.id) && DEFAULT_PICKS.includes(f.id)).slice(0, 3).map(f => f.name);
+    notes.push({kind: "warn", text: `Your foods give ${Math.round(tot[k])} g of ${word} against a target of ${T[k]} g.${ideas.length ? ` Liking foods such as ${ideas.join(", ")} would help.` : ""}`});
+  }
+  return notes;
+}
+
 /** Largest practical amount of one food in a single meal, in grams. */
 export function portionCap(f) {
   const id = f.id;
@@ -282,7 +340,7 @@ export function replacements(food, qty, unit, foods, prefs, n = 2) {
   const key = KEY[food.role] || "kcal", base = nutrientsFor(food, qty, unit);
   const useKcal = !(base[key] > 0.5);
   const k = useKcal ? "kcal" : key;
-  const sameRole = foods.filter(f => f.id !== food.id && allowed(f, prefs) && (f.role === food.role || (["carb", "fruit"].includes(food.role) && ["carb", "fruit"].includes(f.role))));
+  const sameRole = foods.filter(f => f.id !== food.id && suggestible(f, prefs) && (f.role === food.role || (["carb", "fruit"].includes(food.role) && ["carb", "fruit"].includes(f.role))));
   const opts = [];
   for (const f of sameRole) {
     const per = f.per100g[k]; if (!(per > 0)) continue;

@@ -5,6 +5,9 @@ import {DuplicateProfileError, normName} from "../core/store.js";
 import {ensureStarterPlans} from "../core/starter.js";
 import {PROGRAM_TEMPLATES} from "../data/programs.js";
 import {FOODS} from "../data/foods.js";
+const FOODS_ALL = FOODS, FOODS_PLUS = p => FOODS.concat(Object.values(p.nutrition.customFoods || {}));
+import {setFoodPref} from "../core/nutrition.js";
+import {foodPrefsEditor, prefsSummary} from "./foodprefs.js";
 
 const goalLabel = id => (GOALS.find(g => g.id === id) || {}).label || "";
 
@@ -47,7 +50,9 @@ export function renderOnboarding(el, {store, uid, go, mode, pid}) {
   const src = editing ? store.profile(pid) : null;
   const steps = STEPS.filter(s => !(editing && s.createOnly));
   const d = src ? JSON.parse(JSON.stringify(src)) : {name: "", age: "", sex: "male", heightCm: "", weightKg: "", targetWeightKg: "", activity: "moderate", goal: "maintain",
-    mealsPerDay: 4, mealTimes: [], diet: "none", allergies: [], dislikes: [], preferred: []};
+    mealsPerDay: 4, mealTimes: [], diet: "none", allergies: [], foodPrefs: {}};
+  if (!d.foodPrefs) d.foodPrefs = {};
+  let prefEditor = null;
   let tpl = "fullbody";
   let i = editing && (src.age == null || !src.heightCm || !src.weightKg) ? 0 : 0;
 
@@ -91,14 +96,10 @@ export function renderOnboarding(el, {store, uid, go, mode, pid}) {
     }
     if (id === "meals") return `<div class="field"><span class="label">Meals per day</span><div class="chips" id="mpd">${[2, 3, 4, 5, 6].map(n => `<button type="button" class="chip" data-mpd="${n}" aria-pressed="${+d.mealsPerDay === n}">${n} meals</button>`).join("")}</div></div>
       <div class="field"><span class="label">Meal times (optional)</span><span class="hint">Shown next to each meal in your plan.</span><div class="grid2" id="mtimes" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">${mealTimesHTML()}</div></div>`;
-    if (id === "food") {
-      const pick = ["chicken_breast_c", "beef_95_c", "salmon_c", "tuna_can", "egg", "greek_0", "cottage", "whey", "tofu", "lentils_c", "rice_white_c", "rice_brown_c", "pasta_c", "oats_d", "potato_boiled", "sweet_potato_c", "bread_ww", "quinoa_c", "banana", "apple", "dates_medjool", "olive_oil", "avocado", "almonds", "peanut_butter", "tahini"];
-      const fname = id => (FOODS.find(f => f.id === id) || {}).name || id;
-      return `<div class="field"><span class="label">Diet</span><div class="chips">${DIETS.map(x => `<button type="button" class="chip" data-k="diet" data-v="${x.id}" aria-pressed="${d.diet === x.id}">${x.label}</button>`).join("")}</div></div>
-      <div class="field"><span class="label">Allergies and intolerances</span><span class="hint">Foods containing these are never suggested.</span><div class="chips">${ALLERGENS.map(a => `<button type="button" class="chip" data-multi="allergies" data-v="${a.id}" aria-pressed="${d.allergies.includes(a.id)}">${a.label}</button>`).join("")}</div></div>
-      <div class="field"><span class="label">Foods you like</span><span class="hint">Your plan is built from these.</span><div class="chips">${pick.map(f => `<button type="button" class="chip" data-multi="preferred" data-v="${f}" aria-pressed="${d.preferred.includes(f)}">${esc(fname(f))}</button>`).join("")}</div></div>
-      <div class="field"><span class="label">Foods you dislike</span><div class="chips">${pick.map(f => `<button type="button" class="chip" data-multi="dislikes" data-v="${f}" aria-pressed="${d.dislikes.includes(f)}">${esc(fname(f))}</button>`).join("")}</div></div>`;
-    }
+    if (id === "food") return `<p class="muted" style="margin-top:-6px">Tell us what you enjoy eating so we can personalize your meal plans. Everything is optional.</p>
+      <div class="field"><span class="label">Diet</span><div class="chips">${DIETS.map(x => `<button type="button" class="chip" data-k="diet" data-v="${x.id}" aria-pressed="${d.diet === x.id}">${x.label}</button>`).join("")}</div></div>
+      <div class="field"><span class="label">Allergies and intolerances</span><span class="hint">Foods containing these are never suggested or added. A food you like can't override this.</span><div class="chips">${ALLERGENS.map(a => `<button type="button" class="chip" data-multi="allergies" data-v="${a.id}" aria-pressed="${d.allergies.includes(a.id)}">${a.label}</button>`).join("")}</div></div>
+      <div class="field"><span class="label">Foods you like or dislike</span><span class="hint">Liked foods are used first. Disliked foods are left out of generated plans, but you can still add them yourself.</span><div class="card flat" id="pedit" style="padding:12px"></div></div>`;
     if (id === "train") return `<p class="muted">Pick a starting plan. You can edit every exercise, or build your own, later.</p><div class="opts">${PROGRAM_TEMPLATES.map(p => `<button type="button" class="opt" data-tpl="${p.id}" aria-pressed="${tpl === p.id}">${icon("dumbbell")}<span><b>${esc(p.name)}</b><small>${p.daysPerWeek} days a week · ${p.level} · ${esc(p.goal)}</small></span></button>`).join("")}
       <button type="button" class="opt" data-tpl="" aria-pressed="${tpl === ""}">${icon("plus")}<span><b>Start empty</b><small>Build a plan yourself from the exercise library</small></span></button></div>`;
     return "";
@@ -109,13 +110,17 @@ export function renderOnboarding(el, {store, uid, go, mode, pid}) {
   }
   function wire(id) {
     const f = $("#obf", el);
+    if (id === "food") prefEditor = foodPrefsEditor($("#pedit", f), {
+      getMap: () => d.foodPrefs, setState: (fid, st) => (d.foodPrefs = setFoodPref(d.foodPrefs, fid, st)),
+      resetAll: () => (d.foodPrefs = {}), restoreAll: m => (d.foodPrefs = {...m}),
+      getRules: () => ({diet: d.diet, allergies: d.allergies}), foods: editing ? FOODS_PLUS(src) : FOODS_ALL, compact: true});
     f.onclick = e => {
       const o = e.target.closest("[data-k]");
-      if (o) { d[o.dataset.k] = o.dataset.v; $$(`[data-k="${o.dataset.k}"]`, f).forEach(b => b.setAttribute("aria-pressed", b === o)); if (id === "goal") draw(); return; }
+      if (o) { d[o.dataset.k] = o.dataset.v; $$(`[data-k="${o.dataset.k}"]`, f).forEach(b => b.setAttribute("aria-pressed", b === o)); if (id === "goal") draw(); if (o.dataset.k === "diet" && prefEditor) prefEditor.refresh(); return; }
       const m = e.target.closest("[data-multi]");
       if (m) { const k = m.dataset.multi, v = m.dataset.v, arr = d[k]; const on = !arr.includes(v); d[k] = on ? arr.concat(v) : arr.filter(x => x !== v);
         m.setAttribute("aria-pressed", on);
-        if (on && (k === "preferred" || k === "dislikes")) { const other = k === "preferred" ? "dislikes" : "preferred"; d[other] = d[other].filter(x => x !== v); const ob = $(`[data-multi="${other}"][data-v="${v}"]`, f); if (ob) ob.setAttribute("aria-pressed", "false"); }
+        if (k === "allergies" && prefEditor) prefEditor.refresh();
         return; }
       const mp = e.target.closest("[data-mpd]");
       if (mp) { readTimes(); d.mealsPerDay = +mp.dataset.mpd; $$("[data-mpd]", f).forEach(b => b.setAttribute("aria-pressed", b === mp)); $("#mtimes", f).innerHTML = mealTimesHTML(); return; }
@@ -147,7 +152,7 @@ export function renderOnboarding(el, {store, uid, go, mode, pid}) {
   function finish() {
     const fields = {name: d.name, age: +d.age, sex: d.sex, heightCm: +d.heightCm, weightKg: +d.weightKg, targetWeightKg: d.targetWeightKg ? +d.targetWeightKg : null,
       activity: d.activity, goal: d.goal, mealsPerDay: +d.mealsPerDay, mealTimes: d.mealTimes.slice(0, +d.mealsPerDay), diet: d.diet,
-      allergies: d.allergies, dislikes: d.dislikes, preferred: d.preferred};
+      allergies: d.allergies, foodPrefs: d.foodPrefs};
     if (validateBody(fields).length) { $("#oberr", el).textContent = "Some details are missing. Go back and check your age, height and weight."; return; }
     try {
       if (editing) {
@@ -191,6 +196,10 @@ export function renderMe(el, ctx) {
      ${t ? `<dt>Daily target</dt><dd>${fmt(t.kcal)} kcal · P ${t.p} · C ${t.c} · F ${t.f}</dd>` : ""}
      <dt>Created</dt><dd>${fmtDateLong(p.createdAt)}</dd></dl>
     <button type="button" class="btn ghost block" data-a="edit" style="margin-top:14px">${icon("square-pen", "sm")}Edit details and preferences</button></section>
+   <section class="card"><div class="card-h"><span class="cat-ico">${icon("thumbs-up")}</span><h3>Food preferences</h3></div>
+    ${(() => { const ps = prefsSummary(p); return `<div class="row wrap-ok" style="gap:6px"><span class="badge ok">${icon("thumbs-up", "sm")}${ps.liked} liked</span><span class="badge" style="background:var(--danger-soft);color:var(--danger)">${icon("thumbs-down", "sm")}${ps.disliked} disliked</span></div>
+     <p class="muted" style="font-size:14px;margin-top:8px">${ps.likedNames.length ? "You like " + esc(ps.likedNames.slice(0, 4).join(", ")) + (ps.likedNames.length > 4 ? ` and ${ps.likedNames.length - 4} more` : "") + "." : "No preferences yet. Your plans use a balanced default selection."}</p>`; })()}
+    <button type="button" class="btn ghost block" data-a="prefs" style="margin-top:12px">${icon("square-pen", "sm")}Edit food preferences</button></section>
    <section class="card"><div class="card-h"><h3>Switch profile</h3>${ibtn("user-plus", "Add profile", 'data-a="add"')}</div>
     ${others.length ? `<div class="list">${others.map(o => `<div class="li">${avatar(o)}<div class="main"><div class="title">${esc(o.name)}</div><div class="sub">${o.age != null ? o.age + " yrs" : "Details needed"}</div></div><button type="button" class="btn sm ghost" data-switch="${o.id}">${icon("arrow-left-right", "sm")}Switch</button></div>`).join("")}</div>`
       : `<p class="muted" style="font-size:14px">No other profiles on this device.</p>`}
@@ -205,6 +214,7 @@ export function renderMe(el, ctx) {
   el.onclick = async e => {
     const a = e.target.closest("[data-a]")?.dataset.a;
     if (a === "edit") return ctx.go("#/edit");
+    if (a === "prefs") return ctx.go("#/prefs");
     if (a === "add") return ctx.go("#/new");
     if (a === "all") return ctx.go("#/profiles");
     const sw = e.target.closest("[data-switch]");

@@ -7,9 +7,10 @@
 // can never overwrite newer data written by another tab.
 
 import {LEGACY_EXERCISE_NAMES} from "../data/programs.js";
+import {normalizeFoodPrefs, prefsFromLists} from "./nutrition.js";
 
 export const KEY = "mangafit.db";
-export const SCHEMA = 3;
+export const SCHEMA = 4;
 
 export class SaveError extends Error {}
 export class DuplicateProfileError extends Error {
@@ -20,12 +21,20 @@ export const normName = s => String(s || "").trim().replace(/\s+/g, " ").toLocal
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 const now = () => new Date().toISOString();
 
+/** One preference state per food: fold any legacy liked/disliked lists into foodPrefs and drop invalid entries. */
+export function canonicalPrefs(p) {
+  if (Array.isArray(p.preferred) || Array.isArray(p.dislikes)) p.foodPrefs = prefsFromLists(p.preferred || [], p.dislikes || [], p.foodPrefs);
+  delete p.preferred; delete p.dislikes;
+  p.foodPrefs = normalizeFoodPrefs(p.foodPrefs);
+  return p;
+}
+
 export function emptyProfile(fields = {}) {
   const t = now();
   return {
     id: uid(), createdAt: t, updatedAt: t,
     name: "", age: null, sex: "male", heightCm: null, weightKg: null, activity: "moderate", goal: "maintain",
-    mealsPerDay: 4, targetWeightKg: null, diet: "none", allergies: [], dislikes: [], preferred: [], mealTimes: [],
+    mealsPerDay: 4, targetWeightKg: null, diet: "none", allergies: [], foodPrefs: {}, mealTimes: [],
     weights: [],
     nutrition: {plans: {}, activePlanId: null, favorites: [], recent: [], customFoods: {}, savedMeals: {}, eaten: {}},
     training: {plans: {}, activePlanId: null, logs: [], equipment: []},
@@ -73,7 +82,7 @@ export function createStore(storage = globalThis.localStorage) {
       const db = read();
       if (!normName(fields.name)) throw new Error("Enter a name.");
       assertUnique(db, fields.name, fields.age);              // checked again here, at write time
-      const p = emptyProfile({...fields, name: String(fields.name).trim().replace(/\s+/g, " ")});
+      const p = canonicalPrefs(emptyProfile({...fields, name: String(fields.name).trim().replace(/\s+/g, " ")}));
       db.profiles[p.id] = p; db.activeProfileId = p.id; p.lastOpenedAt = now();
       write(db);
       return p;
@@ -85,6 +94,7 @@ export function createStore(storage = globalThis.localStorage) {
       const draft = JSON.parse(JSON.stringify(cur));
       if (fn(draft) === false) return cur;
       draft.id = id; draft.name = String(draft.name || "").trim().replace(/\s+/g, " ");
+      canonicalPrefs(draft);
       if (!draft.name) throw new Error("Enter a name.");
       assertUnique(db, draft.name, draft.age, id);
       draft.updatedAt = now();
@@ -143,7 +153,7 @@ export function migrate(db, storage) {
         p.goal = OLD_GOAL[macros.goal] || "maintain";
       }
       if (isUser && foods) {
-        p.preferred = (foods.foods || []).map(f => OLD_FOOD[f]).filter(Boolean);
+        p.foodPrefs = prefsFromLists((foods.foods || []).map(f => OLD_FOOD[f]).filter(Boolean));
         if (+foods.meals) p.mealsPerDay = +foods.meals;
       }
       p.weights = (pr.w || []).filter(x => x && x.d && +x.kg).map(x => ({d: x.d, kg: +x.kg}));
@@ -161,6 +171,7 @@ export function migrate(db, storage) {
       for (const pl of Object.values(p.training?.plans || {}))
         if (pl.templateId === "recomp" && pl.name === "Body Recomp") pl.name = "PUSH-PULL-LEGS";
   }
+  if ((db.schema || 0) < 4) for (const p of Object.values(db.profiles)) canonicalPrefs(p);   // v4: one preference map
   db.schema = SCHEMA;
   return db;
 }

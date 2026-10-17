@@ -2,7 +2,7 @@
 import {$, $$, esc, icon, ibtn, toast, sheet, confirmDialog, promptDialog, fmt, kcal, r0, r1, today, fmtDate, qtyLabel} from "./dom.js";
 import {FOOD_SOURCE} from "../data/foods.js";
 import {nutrientsFor, sum, mealTotals, planTotals, planTargets, targets, unitsFor, defaultUnit, convertQty, stepFor, practical, pieceHint,
-  replacements, generateMeals, allowed, ACTIVITY, GOALS, LIMITS, mealLayout, KEY} from "../core/nutrition.js";
+  replacements, generatePlan, allowed, restriction, foodPref, setFoodPref, ACTIVITY, GOALS, LIMITS, mealLayout, KEY} from "../core/nutrition.js";
 import {duplicatePlan} from "../core/training.js";
 import {newDietPlan, PLAN_NAMES} from "../core/starter.js";
 
@@ -68,6 +68,8 @@ function todayView(v, ctx) {
       ${macroBar("Protein", "var(--protein)", tot.p, T.p)}${macroBar("Carbs", "var(--carbs)", tot.c, T.c)}${macroBar("Fat", "var(--fat)", tot.f, T.f)}</div></div>
      <p class="faint" style="font-size:12.5px;margin-top:12px">Bars show the plan against your targets. ${Math.abs(tot.kcal - T.kcal) > T.kcal * 0.05 ? `<b style="color:var(--warn)">The plan is ${kcal(Math.abs(tot.kcal - T.kcal))} kcal ${tot.kcal > T.kcal ? "over" : "under"} target.</b>` : "The plan is on target."} Tick meals as you eat them.</p>`
      : `<p class="muted">Add your body details in your profile to see targets.</p>`}</section>
+   ${(plan.notes || []).length ? `<section class="card flat" style="margin-top:12px"><div class="row" style="align-items:flex-start;gap:10px">${icon("info")}<div style="flex:1;display:grid;gap:6px;font-size:14px">${plan.notes.map(n => `<p${n.kind === "warn" ? ' style="color:var(--warn)"' : ""}>${esc(n.text)}</p>`).join("")}
+      <div class="row wrap-ok" style="gap:8px;margin-top:4px"><a class="btn ghost sm" href="#/prefs">${icon("thumbs-up", "sm")}Food preferences</a></div></div>${ibtn("x", "Dismiss", 'data-a="dismiss"', "sm")}</div></section>` : ""}
    <div class="row" style="margin:18px 0 10px"><h2 style="flex:1">Meals</h2><span class="faint" style="font-size:13px">${eaten.size} of ${plan.meals.length} eaten</span></div>
    <div class="stack" id="meals">${plan.meals.map((m, i) => mealCard(ctx, plan, m, i, eaten.has(m.id), p.mealTimes[i])).join("") || `<div class="card empty">${icon("utensils")}<p>No meals yet.</p></div>`}</div>
    <button type="button" class="btn ghost block" data-a="addmeal" style="margin-top:12px">${icon("plus", "sm")}Add a meal</button>
@@ -78,6 +80,7 @@ function todayView(v, ctx) {
     if (a === "activate") { ctx.save(d => { d.nutrition.activePlanId = plan.id; }, `${plan.name} is now active`); viewPlanId = null; return ctx.rerender(); }
     if (a === "unview") { viewPlanId = null; return ctx.rerender(); }
     if (a === "switch") return switchPlanSheet(ctx);
+    if (a === "dismiss") { updPlan(ctx, plan.id, pl => { delete pl.notes; }); return ctx.rerender(); }
     if (a === "rename") { const n = await promptDialog({title: "Rename plan", label: "Plan name", value: plan.name}); if (n) { updPlan(ctx, plan.id, pl => { pl.name = n; }, "Renamed"); ctx.rerender(); } return; }
     if (a === "addmeal") {
       const n = await promptDialog({title: "Add a meal", label: "Meal name", value: `Meal ${plan.meals.length + 1}`, confirm: "Add"}); if (!n) return;
@@ -223,7 +226,8 @@ function foodPicker(ctx, mealName) {
         ${units.length > 1 ? `<select id="au" class="u" aria-label="Unit">${units.map(x => `<option${x === u ? " selected" : ""}>${x}</option>`).join("")}</select>` : `<span style="padding:0 10px;color:var(--ink-3);font-weight:600">g</span>`}<button type="button" data-a="inc" aria-label="More">${icon("plus", "sm")}</button></div>
         ${(f.pieces || []).map(pp => `<button type="button" class="chip" data-pc="${pp.g}">1 ${esc(pp.label)} · ${fmt(pp.g, 1)} g</button>`).join("")}</div><span class="hint" id="aph"></span></div>
        <div class="mstrip" id="astrip" style="margin-top:12px"></div>
-       <button type="button" class="btn primary block lg" data-a="add" style="margin-top:16px">${icon("plus")}Add to ${esc(mealName)}</button>`;
+       ${(() => { const r = restriction(f, ctx.profile()); return r ? `<p class="badge warn" style="white-space:normal;margin-top:14px;display:flex">${icon("ban", "sm")} This conflicts with your ${r === "allergy" ? "allergies" : "diet"}, so it can't be added. Change this in your profile if it's wrong.</p>` : foodPref(ctx.profile(), f.id) === "dislike" ? `<p class="faint" style="font-size:13px;margin-top:12px">${icon("thumbs-down", "sm")} You marked this as disliked. You can still add it.</p>` : ""; })()}
+       <button type="button" class="btn primary block lg" data-a="add" style="margin-top:16px" ${restriction(f, ctx.profile()) ? "disabled" : ""}>${icon("plus")}Add to ${esc(mealName)}</button>`;
       const upd = () => { const q = parseFloat($("#aq", b).value), uu = $("#au", b)?.value || u; const n = nutrientsFor(f, q >= 0 ? q : 0, uu); $("#astrip", b).innerHTML = strip(n); $("#aph", b).textContent = pieceHint(f, q, uu); };
       $("#aq", b).oninput = upd; if ($("#au", b)) $("#au", b).onchange = e => { const prev = e.target.dataset.prev || u; $("#aq", b).value = roundQ(convertQty(f, parseFloat($("#aq", b).value) || 0, prev, e.target.value), e.target.value); e.target.dataset.prev = e.target.value; upd(); };
       upd(); setTimeout(() => $("#aq", b).select(), 60);
@@ -238,7 +242,7 @@ function foodPicker(ctx, mealName) {
       if (a === "custom") return customFoodSheet(ctx).then(f => { if (f) qtyView(f); else listView(); });
       if (a === "inc" || a === "dec") { const inp = $("#aq", b), uu = $("#au", b)?.value || defaultUnit(chosen), s = stepFor(chosen, uu); inp.value = Math.max(0, roundQ((parseFloat(inp.value) || 0) + (a === "inc" ? s : -s), uu)); return inp.dispatchEvent(new Event("input")); }
       const pc = e.target.closest("[data-pc]"); if (pc) { const uu = $("#au", b)?.value || "g"; $("#aq", b).value = roundQ(convertQty(chosen, +pc.dataset.pc, "g", uu), uu); return $("#aq", b).dispatchEvent(new Event("input")); }
-      if (a === "add") { const q = parseFloat($("#aq", b).value), uu = $("#au", b)?.value || defaultUnit(chosen); if (!(q > 0) || q > 100000) return toast("Enter an amount greater than 0.", {error: true}); close({food: chosen, qty: roundQ(q, uu), unit: uu}); }
+      if (a === "add") { if (restriction(chosen, ctx.profile())) return toast("This food conflicts with your allergies or diet.", {error: true}); const q = parseFloat($("#aq", b).value), uu = $("#au", b)?.value || defaultUnit(chosen); if (!(q > 0) || q > 100000) return toast("Enter an amount greater than 0.", {error: true}); close({food: chosen, qty: roundQ(q, uu), unit: uu}); }
     };
     listView();
   }});
@@ -256,8 +260,9 @@ function filterFoods(ctx, {q, cat, tab}) {
 }
 function foodRows(ctx, list, favs) {
   const prefs = ctx.profile();
-  return list.map(f => { const per = f.unit === "ml" ? nutrientsFor(f, 100, "ml") : f.per100g, ok = allowed(f, prefs);
-    return `<div class="row" style="border-top:1px solid var(--line);gap:4px"><button type="button" class="food-li" data-food="${f.id}" style="border:0;flex:1">${`<span class="cat-ico">${catIcon(f)}</span>`}<div class="main"><div class="title">${esc(f.name)}${ok ? "" : ' <span class="badge warn">Not in your diet</span>'}</div>
+  return list.map(f => { const per = f.unit === "ml" ? nutrientsFor(f, 100, "ml") : f.per100g, r = restriction(f, prefs), pr = foodPref(prefs, f.id);
+    const tag = r ? ` <span class="badge warn">${r === "allergy" ? "Allergy" : "Not in your diet"}</span>` : pr === "like" ? ` <span class="badge ok" title="You like this">${icon("thumbs-up", "sm")}</span>` : pr === "dislike" ? ` <span class="badge" style="background:var(--danger-soft);color:var(--danger)" title="You dislike this">${icon("thumbs-down", "sm")}</span>` : "";
+    return `<div class="row" style="border-top:1px solid var(--line);gap:4px"><button type="button" class="food-li" data-food="${f.id}" style="border:0;flex:1">${`<span class="cat-ico">${catIcon(f)}</span>`}<div class="main"><div class="title">${esc(f.name)}${tag}</div>
       <div class="sub">per 100 ${f.unit === "ml" ? "ml" : "g"}: ${kcal(per.kcal)} kcal · ${macroTxt(per)}</div></div></button>${ibtn("star", favs.includes(f.id) ? "Remove favourite" : "Add favourite", `data-fav="${f.id}"`, favs.includes(f.id) ? "brand" : "")}</div>`; }).join("");
 }
 
@@ -354,7 +359,8 @@ function plansView(v, ctx) {
       if (!await confirmDialog({title: `Regenerate ${pl.name}?`, message: "This replaces the meals in this plan with a new set built from your targets and food preferences. Other plans aren't touched. To keep these meals, duplicate the plan first.", confirm: "Regenerate"})) return;
       const prof = ctx.profile(), T = planTargets(prof, pl);
       if (!T) return toast("Add your body details first.", {error: true});
-      updPlan(ctx, id, x => { x.meals = generateMeals({targets: T, mealsPerDay: prof.mealsPerDay, foods: ctx.foods(), prefs: prof, uid: ctx.uid}); }, "New meals generated");
+      const gen = generatePlan({targets: T, mealsPerDay: prof.mealsPerDay, foods: ctx.foods(), prefs: prof, uid: ctx.uid});
+      updPlan(ctx, id, x => { x.meals = gen.meals; x.notes = gen.notes; }, "New meals generated");
       return ctx.rerender();
     }
     if (a === "del") {
@@ -447,19 +453,26 @@ async function foodDetail(ctx, id) {
   const res = await sheet({title: f.name, render: b => {
     const per = nutrientsFor(f, 100, "g"), perMl = f.unit === "ml" ? nutrientsFor(f, 100, "ml") : null, pc = f.pieces || [];
     const row = (l, k, u = "g") => `<tr><td>${l}</td><td class="n">${per[k] == null ? "–" : fmt(per[k], k === "kcal" ? 0 : 1) + " " + u}</td>${perMl ? `<td class="n">${perMl[k] == null ? "–" : fmt(perMl[k], k === "kcal" ? 0 : 1) + " " + u}</td>` : ""}${pc[0] ? `<td class="n">${(() => { const x = nutrientsFor(f, pc[0].g, "g")[k]; return x == null ? "–" : fmt(x, k === "kcal" ? 0 : 1) + " " + u; })()}</td>` : ""}</tr>`;
-    b.innerHTML = `<div class="row wrap-ok" style="gap:6px;margin-bottom:12px"><span class="badge">${(CATS.find(c => c.id === f.cat) || {label: "My food"}).label}</span><span class="badge">${ROLE_LABEL[f.role] || ""}</span>${f.unit === "ml" ? `<span class="badge">Liquid · ${f.density} g/ml</span>` : ""}${allowed(f, ctx.profile()) ? "" : '<span class="badge warn">Not in your diet</span>'}</div>
+    const prof = ctx.profile(), r = restriction(f, prof), pr = foodPref(prof, f.id);
+    b.innerHTML = `<div class="row wrap-ok" style="gap:6px;margin-bottom:12px"><span class="badge">${(CATS.find(c => c.id === f.cat) || {label: "My food"}).label}</span><span class="badge">${ROLE_LABEL[f.role] || ""}</span>${f.unit === "ml" ? `<span class="badge">Liquid · ${f.density} g/ml</span>` : ""}${r ? `<span class="badge warn">${r === "allergy" ? "Allergy" : "Not in your diet"}</span>` : ""}</div>
+     <div class="row" style="margin-bottom:14px;gap:10px"><span class="label" style="flex:1">Your preference</span><div class="tri" role="radiogroup" aria-label="Preference for ${esc(f.name)}">${[["like", "thumbs-up", "Like"], ["neutral", "minus", "No preference"], ["dislike", "thumbs-down", "Dislike"]].map(([k, ic, l]) => `<button type="button" role="radio" data-pref="${k}" aria-checked="${pr === k}" aria-label="${l}" data-tip="${k === "like" && r ? "Conflicts with your " + (r === "allergy" ? "allergies" : "diet") : l}" ${k === "like" && r ? "disabled" : ""}>${icon(ic)}</button>`).join("")}</div></div>
      <table class="t"><thead><tr><th>Nutrient</th><th class="n">per 100 g</th>${perMl ? '<th class="n">per 100 ml</th>' : ""}${pc[0] ? `<th class="n">per ${esc(pc[0].label)} (${fmt(pc[0].g, 1)} g)</th>` : ""}</tr></thead><tbody>
       ${row("Energy", "kcal", "kcal")}${row("Protein", "p")}${row("Carbohydrate", "c")}${row("Fat", "f")}${row("Fiber", "fiber")}${row("Sugars", "sugar")}${row("Saturated fat", "satFat")}${row("Sodium", "sodium", "mg")}</tbody></table>
      <p class="src" style="margin-top:12px">${f.custom ? `${icon("square-pen", "sm")} Custom food — values entered by you.` : `${icon("info", "sm")} Source: ${esc(f.src.db)}, FDC ID <a href="https://fdc.nal.usda.gov/food-details/${f.src.fdcId}/nutrients" target="_blank" rel="noopener">${f.src.fdcId}</a> — “${esc(f.src.desc)}”.`}</p>`;
+    b.onclick = e => { const pb = e.target.closest("[data-pref]"); if (!pb || pb.disabled) return;
+      const ok = ctx.save(d => { d.foodPrefs = setFoodPref(d.foodPrefs, f.id, pb.dataset.pref); });
+      if (ok) { b.querySelectorAll("[data-pref]").forEach(x => x.setAttribute("aria-checked", x === pb)); toast(pb.dataset.pref === "neutral" ? "Preference cleared" : `Marked as ${pb.dataset.pref === "like" ? "liked" : "disliked"}`); } };
   }, footer: (fo, close) => {
     const fav = ctx.profile().nutrition.favorites.includes(f.id);
     fo.innerHTML = `<button type="button" class="btn ghost" data-a="fav">${icon("star", "sm")}${fav ? "Unfavourite" : "Favourite"}</button>${f.custom ? `<button type="button" class="btn ghost" data-a="edit">${icon("pencil", "sm")}Edit</button><button type="button" class="btn danger" data-a="del" aria-label="Delete food">${icon("trash-2", "sm")}</button>` : ""}<button type="button" class="btn primary" data-a="add">${icon("plus", "sm")}Add to a meal</button>`;
     fo.onclick = e => { const a = e.target.closest("[data-a]")?.dataset.a; if (a) close(a); };
+    if (restriction(f, ctx.profile())) { const ad = fo.querySelector('[data-a="add"]'); ad.disabled = true; ad.title = "Conflicts with your allergies or diet"; }
   }});
   if (res === "fav") toggleFav(ctx, f.id);
   if (res === "edit") await customFoodSheet(ctx, f);
   if (res === "del" && await confirmDialog({title: `Delete ${f.name}?`, message: "Meals that use it will show it as an unknown food until you remove or replace it.", confirm: "Delete food", danger: true})) ctx.save(d => { delete d.nutrition.customFoods[f.id]; }, "Food deleted");
   if (res === "add") {
+    if (restriction(f, ctx.profile())) return toast("This food conflicts with your allergies or diet.", {error: true});
     const p = ctx.profile(), plan = currentPlan(p); if (!plan) return toast("Create a diet plan first.", {error: true});
     const mid = await sheet({title: `Add to ${plan.name}`, render: (b, close) => { b.innerHTML = `<div class="opts">${plan.meals.map(m => `<button type="button" class="opt" data-m="${m.id}">${icon("utensils")}<span><b>${esc(m.name)}</b><small>${kcal(mealTotals(m, ctx.foodById).kcal)} kcal</small></span></button>`).join("")}</div>`; b.onclick = e => { const o = e.target.closest("[data-m]"); if (o) close(o.dataset.m); }; }});
     if (!mid) return;

@@ -2,14 +2,14 @@
 import {FOODS} from "../data/foods.js";
 import {PROGRAM_TEMPLATES} from "../data/programs.js";
 import {planFromTemplate} from "./training.js";
-import {targets, generateMeals} from "./nutrition.js";
+import {targets, generatePlan} from "./nutrition.js";
 
 export const PLAN_NAMES = {lose: "Fat Loss Plan", maintain: "Maintenance Plan", gain: "Muscle Gain Plan"};
 
 export function newDietPlan(profile, {goal = profile.goal, name, uid, now, generate = true}) {
   const t = targets({...profile, goal});
-  const meals = generate && t ? generateMeals({targets: t, mealsPerDay: profile.mealsPerDay, foods: FOODS.concat(Object.values(profile.nutrition.customFoods || {})), prefs: profile, uid}) : [];
-  return {id: uid(), name: name || PLAN_NAMES[goal] || "My plan", goal, createdAt: now, updatedAt: now, meals};
+  const gen = generate && t ? generatePlan({targets: t, mealsPerDay: profile.mealsPerDay, foods: FOODS.concat(Object.values(profile.nutrition.customFoods || {})), prefs: profile, uid}) : {meals: [], notes: []};
+  return {id: uid(), name: name || PLAN_NAMES[goal] || "My plan", goal, createdAt: now, updatedAt: now, meals: gen.meals, notes: gen.notes};
 }
 
 /** Adds what's missing. templateId: the program picked in onboarding (or a v1 profile's old choice). */

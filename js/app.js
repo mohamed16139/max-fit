@@ -6,6 +6,7 @@ import {$, icon, avatar, esc, guard, applyTheme} from "./ui/dom.js";
 import {renderProfiles, renderOnboarding, renderMe} from "./ui/profiles.js";
 import {renderTraining} from "./ui/training.js";
 import {renderNutrition} from "./ui/nutrition.js";
+import {renderPrefsPage} from "./ui/foodprefs.js";
 
 const store = createStore();
 const root = $("#root");
@@ -48,6 +49,7 @@ function route() {
   if (sec === "training") { lastSection.training = sub || lastSection.training; return shell(ctx, el => renderTraining(el, ctx, lastSection.training)); }
   if (sec === "nutrition") { lastSection.nutrition = sub || lastSection.nutrition; return shell(ctx, el => renderNutrition(el, ctx, lastSection.nutrition)); }
   if (sec === "me") return shell(ctx, el => renderMe(el, ctx));
+  if (sec === "prefs") return shell(ctx, el => renderPrefsPage(el, ctx));
   go("#/training/workout");
 }
 
@@ -57,8 +59,9 @@ function shell(ctx, render) {
   if (!ctx) { root.innerHTML = `<main class="app" style="padding-bottom:24px"><div id="view"></div></main>`; render($("#view")); return; }
   const p = ctx.profile();
   const nav = [["training", "Training", icon("dumbbell")], ["nutrition", "Nutrition", icon("utensils")], ["me", "Profile", avatar(p)]];
+  const cur = sec === "prefs" ? "me" : sec;
   root.innerHTML = `<main class="app" id="main"><div id="view"></div></main>
-   <nav class="nav" aria-label="Main"><ul>${nav.map(([id, label, ic]) => `<li><a href="#/${id}" ${sec === id ? 'aria-current="page"' : ""}>${ic}<span>${label}</span></a></li>`).join("")}</ul></nav>`;
+   <nav class="nav" aria-label="Main"><ul>${nav.map(([id, label, ic]) => `<li><a href="#/${id}" ${cur === id ? 'aria-current="page"' : ""}>${ic}<span>${label}</span></a></li>`).join("")}</ul></nav>`;
   render($("#view"));
 }
 

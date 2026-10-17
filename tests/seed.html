@@ -7,7 +7,7 @@ const q = new URLSearchParams(location.search);
 localStorage.clear(); if (q.get("theme")) localStorage.setItem("theme", q.get("theme"));
 localStorage.setItem("installSnooze", Date.now() + 1e10);
 const s = createStore();
-const a = s.createProfile({name: "Mohamed", age: 28, sex: "male", heightCm: 178, weightKg: 80.6, activity: "moderate", goal: "lose", mealsPerDay: 4, preferred: ["chicken_breast_c", "egg", "rice_white_c", "oats_d", "banana", "olive_oil", "greek_0", "potato_boiled", "almonds"], mealTimes: ["08:00", "13:00", "16:30", "20:00"], targetWeightKg: 76});
+const a = s.createProfile({name: "Mohamed", age: 28, sex: "male", heightCm: 178, weightKg: 80.6, activity: "moderate", goal: "lose", mealsPerDay: 4, foodPrefs: {chicken_breast_c: "like", egg: "like", rice_white_c: "like", oats_d: "like", banana: "like", olive_oil: "like", greek_0: "like", potato_boiled: "like", almonds: "like", tuna_can: "dislike", cottage: "dislike"}, mealTimes: ["08:00", "13:00", "16:30", "20:00"], targetWeightKg: 76});
 s.createProfile({name: "Sara", age: 25, sex: "female", heightCm: 165, weightKg: 60, activity: "light", goal: "maintain", mealsPerDay: 3});
 s.createProfile({name: "Omar", age: 34, sex: "male", heightCm: 182, weightKg: 92, activity: "very", goal: "gain", mealsPerDay: 5});
 s.setActive(a.id);

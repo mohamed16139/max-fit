@@ -109,7 +109,8 @@ button{cursor:pointer}
 .chips.scroll::-webkit-scrollbar{display:none}
 
 /* ---------- forms ---------- */
-.field{display:grid;gap:6px}
+.field{display:grid;gap:6px;min-width:0}
+.field>*{min-width:0}
 .field>label,.label{font:600 14px var(--f-body);color:var(--ink)}
 .field .hint{font-size:13px;color:var(--ink-3)}
 .input,select.input,textarea.input{width:100%;min-height:46px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:12px;padding:10px 13px;font-size:16px;color:var(--ink)}
@@ -314,3 +315,28 @@ ol.steps-list{margin:0;padding-left:20px;display:grid;gap:6px;color:var(--ink-2)
 .chart .tip{position:absolute;transform:translate(-50%,-100%);background:var(--ink);color:var(--bg);border-radius:8px;padding:5px 9px;font-size:13px;white-space:nowrap;pointer-events:none;text-align:center}
 .chart .xh{stroke:var(--ink-3)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- food preferences ---------- */
+.prefs{min-width:0}
+.prefs .chips.scroll{margin:0;padding:0}
+.pref-list{display:grid}
+.pref-list.compact{max-height:min(56vh,520px);overflow-y:auto;overscroll-behavior:contain;margin:0 -4px;padding:0 4px}
+.pref-row{display:flex;align-items:center;gap:10px;padding:9px 6px 9px 8px;border-top:1px solid var(--line);border-left:3px solid transparent;border-radius:4px;transition:background .25s,border-color .25s}
+.pref-row:first-child{border-top-color:transparent}
+.pref-row .main{flex:1;min-width:0}
+.pref-row .title{font-weight:600;font-size:15px}
+.pref-row .sub{font-size:12.5px;color:var(--ink-3);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.pref-row .cat-ico{width:36px;height:36px;border-radius:10px}
+.pref-row[data-state="like"]{border-left-color:var(--ok);background:color-mix(in srgb,var(--ok) 7%,transparent)}
+.pref-row[data-state="dislike"]{border-left-color:var(--danger);background:color-mix(in srgb,var(--danger) 6%,transparent)}
+.pref-row.flash{animation:flash .5s ease}
+@keyframes flash{from{background:var(--brand-soft)}}
+.tri{display:inline-flex;flex:none;background:var(--surface-2);border:1px solid var(--line-2);border-radius:11px;padding:2px;gap:2px}
+.tri button{width:38px;height:36px;border:0;border-radius:9px;background:none;color:var(--ink-3);display:grid;place-items:center;position:relative;transition:background .15s,color .15s,transform .08s}
+.tri button:hover{color:var(--ink);background:var(--surface-3)}
+.tri button:active{transform:scale(.92)}
+.tri button[data-s="like"][aria-checked="true"]{background:var(--ok);color:#06210f}
+.tri button[data-s="neutral"][aria-checked="true"]{background:var(--surface-3);color:var(--ink)}
+.tri button[data-s="dislike"][aria-checked="true"]{background:var(--danger);color:#fff}
+.tri button:disabled{opacity:.3;cursor:not-allowed}
+.tri .ico{width:18px;height:18px}

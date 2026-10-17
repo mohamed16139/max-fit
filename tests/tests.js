@@ -87,12 +87,12 @@ test("Generator respects vegan + allergies", () => {
   for (const m of meals) for (const it of m.items) ok(N.allowed(F(it.foodId), prefs), "not allowed: " + it.foodId);
 });
 test("Generator keeps eggs to a practical portion even when they're the only liked protein", () => {
-  const meals = N.generateMeals({targets: {kcal: 2600, p: 170, c: 300, f: 75}, mealsPerDay: 3, foods: FOODS, prefs: {preferred: ["egg", "rice_white_c", "olive_oil"]}, uid});
+  const meals = N.generateMeals({targets: {kcal: 2600, p: 170, c: 300, f: 75}, mealsPerDay: 3, foods: FOODS, prefs: {foodPrefs: {egg: "like", rice_white_c: "like", olive_oil: "like"}}, uid});
   for (const m of meals) for (const it of m.items) if (it.foodId === "egg") ok(it.qty <= 200, "eggs " + it.qty);
   const t = N.planTotals({meals}, F); near(t.p, 170, 170 * 0.1, "protein still met");
 });
 test("Generator prefers liked foods", () => {
-  const meals = N.generateMeals({targets: {kcal: 2400, p: 160, c: 280, f: 70}, mealsPerDay: 3, foods: FOODS, prefs: {preferred: ["salmon_c", "quinoa_c", "avocado"]}, uid});
+  const meals = N.generateMeals({targets: {kcal: 2400, p: 160, c: 280, f: 70}, mealsPerDay: 3, foods: FOODS, prefs: {foodPrefs: {salmon_c: "like", quinoa_c: "like", avocado: "like"}}, uid});
   const ids = meals.flatMap(m => m.items.map(i => i.foodId)); ok(ids.includes("salmon_c") && ids.includes("quinoa_c"), ids.join());
 });
 
@@ -183,7 +183,7 @@ test("Migration from v1 keys", () => {
   });
   const s = createStore(st), ps = s.profiles(); eq(ps.length, 2);
   const m = s.profile(s.activeId()); eq(m.name, "Mohamed"); eq(m.age, 28); eq(m.heightCm, 178); eq(m.goal, "lose");
-  eq(m.preferred.join(), "chicken_breast_c,rice_white_c,olive_oil"); eq(m.training.logs[0].ex, "Barbell_Bench_Press_-_Medium_Grip");
+  eq(JSON.stringify(m.foodPrefs), JSON.stringify({chicken_breast_c: "like", rice_white_c: "like", olive_oil: "like"})); ok(!("preferred" in m) && !("dislikes" in m), "old lists removed"); eq(m.training.logs[0].ex, "Barbell_Bench_Press_-_Medium_Grip");
   eq(m.targetWeightKg, 78); eq(m.legacyProgram, "upperlower");
   const s2 = createStore(st); eq(s2.profiles().length, 2, "migration runs once"); eq(s2.activeId(), m.id, "stable id");
   ok(st.getItem("recompUser"), "old keys kept");
@@ -193,6 +193,66 @@ test("v3 migration renames untouched Body Recomp plans only", () => {
     x: {id: "x", templateId: "recomp", name: "Body Recomp", days: []}, y: {id: "y", templateId: "recomp", name: "My custom name", days: []}}}}}};
   const st = memStorage({"mangafit.db": JSON.stringify(db)}), p = createStore(st).profile("a");
   eq(p.training.plans.x.name, "PUSH-PULL-LEGS"); eq(p.training.plans.y.name, "My custom name");
+});
+// ---------- food preferences ----------
+test("Preference states are mutually exclusive and transitions replace", () => {
+  let m = {};
+  m = N.setFoodPref(m, "egg", "like"); eq(N.foodPref({foodPrefs: m}, "egg"), "like");
+  m = N.setFoodPref(m, "egg", "dislike"); eq(N.foodPref({foodPrefs: m}, "egg"), "dislike"); eq(Object.keys(m).length, 1, "one record");
+  m = N.setFoodPref(m, "egg", "neutral"); eq(N.foodPref({foodPrefs: m}, "egg"), "neutral"); ok(!("egg" in m), "neutral removes the record");
+  m = N.setFoodPref(N.setFoodPref(m, "egg", "like"), "egg", "like"); eq(Object.keys(m).length, 1, "repeat doesn't duplicate");
+  eq(N.foodPref({}, "unknown"), "neutral", "default is neutral");
+});
+test("Legacy contradictory lists resolve to a single state (dislike wins)", () => {
+  const m = N.prefsFromLists(["egg", "rice_white_c"], ["egg"]);
+  eq(m.egg, "dislike"); eq(m.rice_white_c, "like"); eq(Object.keys(m).length, 2);
+});
+test("Store keeps one state per food and drops junk values", () => {
+  const s = createStore(memStorage()), a = s.createProfile({name: "Pref", age: 22, preferred: ["egg"], dislikes: ["egg", "tuna_can"]});
+  eq(s.profile(a.id).foodPrefs.egg, "dislike"); ok(!("preferred" in s.profile(a.id)), "lists folded in");
+  s.updateProfile(a.id, p => { p.foodPrefs = {egg: "like", tuna_can: "maybe", "": "like"}; p.preferred = ["salmon_c"]; p.dislikes = ["salmon_c"]; });
+  const fp = s.profile(a.id).foodPrefs; eq(fp.egg, "like"); ok(!("tuna_can" in fp) && !("" in fp), "invalid dropped"); eq(fp.salmon_c, "dislike");
+});
+test("Preferences are isolated per profile, persist, and vanish with the profile", () => {
+  const st = memStorage(), s = createStore(st), a = s.createProfile({name: "Ana", age: 30}), b = s.createProfile({name: "Ben", age: 30});
+  s.updateProfile(a.id, p => { p.foodPrefs = N.setFoodPref(p.foodPrefs, "salmon_c", "like"); });
+  eq(N.foodPref(s.profile(b.id), "salmon_c"), "neutral", "other profile untouched");
+  s.setActive(b.id); s.updateProfile(b.id, p => { p.foodPrefs = N.setFoodPref(p.foodPrefs, "salmon_c", "dislike"); });
+  eq(createStore(st).profile(a.id).foodPrefs.salmon_c, "like", "persists after restart");
+  s.deleteProfile(a.id); ok(!st.getItem("mangafit.db").includes(a.id), "nothing left of the deleted profile");
+});
+test("v4 migration converts stored lists", () => {
+  const db = {schema: 3, migratedV1: true, activeProfileId: "a", profiles: {a: {id: "a", name: "A", age: 30, preferred: ["egg", "oats_d"], dislikes: ["oats_d"], training: {plans: {}}}}};
+  const p = createStore(memStorage({"mangafit.db": JSON.stringify(db)})).profile("a");
+  eq(p.foodPrefs.egg, "like"); eq(p.foodPrefs.oats_d, "dislike"); ok(!("preferred" in p));
+});
+test("Generator: disliked foods never used, liked foods used, neutral is not disliked", () => {
+  const T = {kcal: 2400, p: 160, c: 280, f: 70};
+  const prefs = {foodPrefs: {chicken_breast_c: "like", rice_white_c: "like", olive_oil: "like", egg: "dislike", oats_d: "dislike", greek_0: "dislike", banana: "dislike"}};
+  for (const n of [3, 4, 5]) {
+    const {meals} = N.generatePlan({targets: T, mealsPerDay: n, foods: FOODS, prefs, uid});
+    const ids = meals.flatMap(m => m.items.map(i => i.foodId));
+    ok(!ids.some(id => ["egg", "oats_d", "greek_0", "banana"].includes(id)), "disliked used: " + ids.join());
+    ok(ids.includes("chicken_breast_c") && ids.includes("rice_white_c"), "liked missing: " + ids.join());
+  }
+  ok(N.suggestible(F("salmon_c"), prefs), "neutral food is still suggestible");
+});
+test("Allergy and diet beat a like; dislikes are not restrictions", () => {
+  const prefs = {allergies: ["fish"], diet: "vegetarian", foodPrefs: {salmon_c: "like", beef_95_c: "like", egg: "dislike"}};
+  eq(N.restriction(F("salmon_c"), prefs), "allergy"); eq(N.restriction(F("beef_95_c"), prefs), "diet");
+  ok(N.allowed(F("egg"), prefs), "a disliked food can still be added by hand"); ok(!N.suggestible(F("egg"), prefs), "but isn't suggested");
+  const {meals, notes} = N.generatePlan({targets: {kcal: 2200, p: 130, c: 250, f: 70}, mealsPerDay: 3, foods: FOODS, prefs, uid});
+  const ids = meals.flatMap(m => m.items.map(i => i.foodId));
+  ok(!ids.includes("salmon_c") && !ids.includes("beef_95_c"), "liked-but-restricted foods excluded");
+  ok(notes.some(n => /Salmon/.test(n.text) && /allerg|diet/.test(n.text)), "explains the exclusion: " + JSON.stringify(notes));
+});
+test("Generator explains when liked foods can't cover a food group", () => {
+  const {notes} = N.generatePlan({targets: {kcal: 2400, p: 160, c: 280, f: 70}, mealsPerDay: 4, foods: FOODS, prefs: {foodPrefs: {rice_white_c: "like", olive_oil: "like"}}, uid});
+  ok(notes.some(n => /protein foods/.test(n.text)), JSON.stringify(notes));
+});
+test("Replacements never suggest disliked foods", () => {
+  const r = N.replacements(F("chicken_breast_c"), 150, "g", FOODS, {foodPrefs: {turkey_breast_c: "dislike", tuna_can: "dislike", cod_c: "dislike"}});
+  ok(r.options.length === 2 && !r.options.some(o => ["turkey_breast_c", "tuna_can", "cod_c"].includes(o.food.id)), r.options.map(o => o.food.id).join());
 });
 test("normName", () => { eq(normName("  Ahmed   Ali "), "ahmed ali"); eq(normName("AHMED"), normName("ahmed")); });
 
