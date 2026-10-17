@@ -9,7 +9,7 @@
 import {LEGACY_EXERCISE_NAMES} from "../data/programs.js";
 
 export const KEY = "mangafit.db";
-export const SCHEMA = 2;
+export const SCHEMA = 3;
 
 export class SaveError extends Error {}
 export class DuplicateProfileError extends Error {
@@ -155,6 +155,11 @@ export function migrate(db, storage) {
       if (isUser) db.activeProfileId = p.id;
     }
     db.migratedV1 = true;
+  }
+  if ((db.schema || 0) < 3) {          // v3: the "Body Recomp" program was renamed; rename untouched copies of it
+    for (const p of Object.values(db.profiles))
+      for (const pl of Object.values(p.training?.plans || {}))
+        if (pl.templateId === "recomp" && pl.name === "Body Recomp") pl.name = "PUSH-PULL-LEGS";
   }
   db.schema = SCHEMA;
   return db;

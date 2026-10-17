@@ -2,7 +2,7 @@
 export const PROGRAM_TEMPLATES = [
  {
   "id": "recomp",
-  "name": "Body Recomp",
+  "name": "PUSH-PULL-LEGS",
   "daysPerWeek": 4,
   "level": "Intermediate",
   "goal": "Lose fat & build muscle",

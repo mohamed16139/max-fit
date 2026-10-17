@@ -188,6 +188,12 @@ test("Migration from v1 keys", () => {
   const s2 = createStore(st); eq(s2.profiles().length, 2, "migration runs once"); eq(s2.activeId(), m.id, "stable id");
   ok(st.getItem("recompUser"), "old keys kept");
 });
+test("v3 migration renames untouched Body Recomp plans only", () => {
+  const db = {schema: 2, migratedV1: true, activeProfileId: "a", profiles: {a: {id: "a", name: "A", age: 30, training: {plans: {
+    x: {id: "x", templateId: "recomp", name: "Body Recomp", days: []}, y: {id: "y", templateId: "recomp", name: "My custom name", days: []}}}}}};
+  const st = memStorage({"mangafit.db": JSON.stringify(db)}), p = createStore(st).profile("a");
+  eq(p.training.plans.x.name, "PUSH-PULL-LEGS"); eq(p.training.plans.y.name, "My custom name");
+});
 test("normName", () => { eq(normName("  Ahmed   Ali "), "ahmed ali"); eq(normName("AHMED"), normName("ahmed")); });
 
 // ---------- report ----------
